@@ -11,6 +11,7 @@ struct DeviceListView: View {
     @State private var selection: DeviceWithState?
 
     @State private var addDeviceButtonActive: Bool = false
+    @State private var provisionDeviceActive: Bool = false
     @State private var showSettingsSheet: Bool = false
     @State private var columnVisibility = NavigationSplitViewVisibility.doubleColumn
 
@@ -42,6 +43,9 @@ struct DeviceListView: View {
                 .toolbar { toolbar }
                 .sheet(isPresented: $addDeviceButtonActive) {
                     DeviceAddView()
+                }
+                .sheet(isPresented: $provisionDeviceActive) {
+                    ProvisionView()
                 }
                 .sheet(isPresented: $showSettingsSheet) {
                     Settings(
@@ -197,8 +201,17 @@ struct DeviceListView: View {
         }
         ToolbarItemGroup(placement: .primaryAction) {
             // 1. Add Button (Direct Access)
-            Button {
-                addDeviceButtonActive.toggle()
+            Menu {
+                Button {
+                    provisionDeviceActive.toggle()
+                } label: {
+                    Label("Set Up New Device", systemImage: "wifi.router")
+                }
+                Button {
+                    addDeviceButtonActive.toggle()
+                } label: {
+                    Label("Add by Address", systemImage: "network")
+                }
             } label: {
                 Label("Add Device", systemImage: "plus")
             }
