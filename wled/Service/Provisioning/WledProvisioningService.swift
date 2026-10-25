@@ -110,8 +110,11 @@ final class WledProvisioningService {
         return URLSession(configuration: configuration)
     }
 
-    private func apURL(_ path: String) -> URL {
-        URL(string: "http://\(ProvisioningDefaults.apHost)\(path)")!
+    private func apURL(_ path: String) throws -> URL {
+        guard let url = URL(string: "http://\(ProvisioningDefaults.apHost)\(path)") else {
+            throw ProvisioningError.unknown
+        }
+        return url
     }
 
     /// Association can still be settling right after `apply` returns, so retry a few times.
@@ -120,7 +123,7 @@ final class WledProvisioningService {
         for attempt in 0..<ProvisioningDefaults.infoRetries {
             if attempt > 0 { try await Task.sleep(for: ProvisioningDefaults.infoRetryDelay) }
             do {
-                let (data, response) = try await session.data(from: apURL("/json/info"))
+                let (data, response) = try await session.data(from: try apURL("/json/info"))
                 guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw ProvisioningError.notAWledDevice }
                 let info = try JSONDecoder().decode(Info.self, from: data)
                 guard let mac = info.mac, !mac.isEmpty else { throw ProvisioningError.notAWledDevice }
@@ -135,7 +138,7 @@ final class WledProvisioningService {
     }
 
     private func postCredentials(_ session: URLSession, _ request: ProvisioningRequest) async throws {
-        var urlRequest = URLRequest(url: apURL("/json/cfg"))
+        var urlRequest = URLRequest(url: try apURL("/json/cfg"))
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.httpBody = try ProvisioningPayloads.wifiConfigJSON(
@@ -149,7 +152,8 @@ final class WledProvisioningService {
     }
 
     private func requestReboot(_ session: URLSession) async {
-        var urlRequest = URLRequest(url: apURL("/json/state"))
+        guard let url = try? apURL("/json/state") else { return }
+        var urlRequest = URLRequest(url: url)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.httpBody = ProvisioningPayloads.rebootJSON
