@@ -29,6 +29,8 @@ struct ProvisioningRequest {
     var apSsidPrefix: String = ProvisioningDefaults.apSsidPrefix
     /// Nil means the setup AP is open (no passphrase).
     var apPassword: String? = ProvisioningDefaults.apPassword
+    /// Sent along with the credentials so the device shows local time right away. Nil leaves it unchanged.
+    var timezone: WledTimezoneSetting?
 }
 
 enum ProvisioningProgress: Equatable {
@@ -71,11 +73,14 @@ enum ProvisioningPayloads {
     ///
     /// Only `nw.ins[0]` is sent. WLED's `deserializeConfig` leaves every field that is absent from
     /// the JSON untouched, so unlike posting the whole /settings/wifi HTML form this cannot reset
-    /// AP behaviour, static IP, mDNS name, etc.
-    static func wifiConfigJSON(ssid: String, password: String) throws -> Data {
-        let payload: [String: Any] = [
+    /// AP behaviour, static IP, mDNS name, etc. `timezone` adds `if.ntp`, which is equally partial.
+    static func wifiConfigJSON(ssid: String, password: String, timezone: WledTimezoneSetting? = nil) throws -> Data {
+        var payload: [String: Any] = [
             "nw": ["ins": [["ssid": ssid, "psk": password]]]
         ]
+        if let timezone {
+            payload["if"] = ["ntp": TimezonePayloads.ntpConfig(timezone)]
+        }
         return try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
     }
 

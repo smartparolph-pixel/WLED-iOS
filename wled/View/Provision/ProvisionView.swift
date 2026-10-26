@@ -7,18 +7,19 @@ struct ProvisionView: View {
 
     var body: some View {
         NavigationView {
-            VStack(alignment: .leading, spacing: 12) {
-                switch viewModel.step {
-                case .form(let ssidError, let errorMessage):
-                    form(ssidError: ssidError, errorMessage: errorMessage)
-                case .working(let progress):
-                    working(progress)
-                case .success(let deviceName):
-                    success(deviceName)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    switch viewModel.step {
+                    case .form(let ssidError, let errorMessage):
+                        form(ssidError: ssidError, errorMessage: errorMessage)
+                    case .working(let progress):
+                        working(progress)
+                    case .success(let deviceName):
+                        success(deviceName)
+                    }
                 }
-                Spacer()
+                .padding()
             }
-            .padding()
             .animation(.easeInOut, value: viewModel.step)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -36,7 +37,7 @@ struct ProvisionView: View {
             .navigationTitle("Set Up New Device")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .interactiveDismissDisabled(!viewModel.step.isForm)
     }
 
@@ -67,6 +68,30 @@ struct ProvisionView: View {
         .submitLabel(.go)
         .onSubmit { viewModel.start() }
         Toggle("Show password", isOn: $showPassword)
+        setupNetworkOptions
+    }
+
+    /// Name and password of the device's own setup network. Only needed for devices flashed with a
+    /// custom access point (e.g. a product name instead of WLED-AP).
+    private var setupNetworkOptions: some View {
+        DisclosureGroup("Setup network options") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Only change these if your device's setup network is not called WLED-AP, for example on products with their own name.")
+                    .font(.caption)
+                TextField("Setup network name starts with", text: $viewModel.apSsidPrefix)
+                Group {
+                    if showPassword {
+                        TextField("Setup network password (empty if open)", text: $viewModel.apPassword)
+                    } else {
+                        SecureField("Setup network password (empty if open)", text: $viewModel.apPassword)
+                    }
+                }
+            }
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .textFieldStyle(.roundedBorder)
+            .padding(.top, 8)
+        }
     }
 
     private func working(_ progress: ProvisioningProgress) -> some View {
@@ -84,6 +109,10 @@ struct ProvisionView: View {
                 .foregroundStyle(.green)
                 .padding()
             Text("\(name) was added")
+            Text("Tip: protect your device by setting a settings PIN and enabling the OTA lock under Config → Security & Updates.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
             Button("Done") { dismiss() }.buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity)

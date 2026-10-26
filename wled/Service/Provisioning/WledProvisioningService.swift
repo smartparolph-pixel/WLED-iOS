@@ -143,7 +143,8 @@ final class WledProvisioningService {
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.httpBody = try ProvisioningPayloads.wifiConfigJSON(
             ssid: request.homeSsid,
-            password: request.homePassword
+            password: request.homePassword,
+            timezone: request.timezone
         )
         let (_, response) = try await session.data(for: urlRequest)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
