@@ -144,7 +144,7 @@ struct SinagTextField: View {
 
     @ViewBuilder
     private var field: some View {
-        let prompt = Text(label).foregroundStyle(SinagColor.muted)
+        let prompt = Text(label).foregroundColor(SinagColor.muted)
         if kind.isSecure && !revealed {
             SecureField(label, text: $text, prompt: prompt)
         } else {
