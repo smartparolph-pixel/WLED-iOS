@@ -66,6 +66,15 @@ struct DeviceEditView: View {
                     .animation(.default, value: viewModel.isCheckingForUpdates)
                 }
 
+                NavigationLink {
+                    TimezonePickerView(device: device.device)
+                } label: {
+                    Label("Set Device Time Zone", systemImage: "globe")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .padding(.vertical)
+
                 Text("Mac Address: \(device.device.macAddress ?? "Unknown")")
                     .font(.caption)
                     .frame(maxWidth: .infinity, alignment: .leading)

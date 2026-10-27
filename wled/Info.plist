@@ -6,9 +6,11 @@
 	<false/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsArbitraryLoads</key>
+		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Your location is only used to set the device's latitude and longitude, so sunrise and sunset schedules happen at the right time.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_wled._tcp</string>

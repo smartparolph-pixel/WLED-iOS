@@ -47,6 +47,15 @@ struct DeviceView: View {
             DeviceInfoTwoRows(device: device)
         }
         ToolbarItem(placement: .primaryAction) {
+            if !device.isAPMode {
+                NavigationLink {
+                    ScheduleListView(device: device)
+                } label: {
+                    Label("Schedule", systemImage: "calendar")
+                }
+            }
+        }
+        ToolbarItem(placement: .primaryAction) {
             NavigationLink {
                 DeviceEditView(device: device)
             } label: {
