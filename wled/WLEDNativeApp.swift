@@ -8,7 +8,7 @@ struct WLEDNativeApp: App {
     
     var body: some Scene {
         WindowGroup {
-            DeviceListView()
+            AppRootView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
                 .onAppear {
                     refreshVersionsSync()
