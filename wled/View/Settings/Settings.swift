@@ -13,6 +13,7 @@ struct Settings: View {
 
     // Environment to dismiss the sheet
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appSession) private var appSession
 
     var body: some View {
         NavigationStack {
@@ -28,6 +29,11 @@ struct Settings: View {
                 }
 
                 Section {
+                    NavigationLink {
+                        AboutView()
+                    } label: {
+                        Label("About Sinag", systemImage: "info.circle")
+                    }
                     if let url = URL(string: "https://kno.wled.ge/") {
                         Link(destination: url) {
                             Label("WLED Documentation", systemImage: "questionmark.circle")
@@ -46,6 +52,16 @@ struct Settings: View {
                     .frame(maxWidth: .infinity)
                 }
 
+                if let appSession {
+                    Section {
+                        Button(role: .destructive) {
+                            dismiss()
+                            Task { await appSession.signOut() }
+                        } label: {
+                            Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
+                    }
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
