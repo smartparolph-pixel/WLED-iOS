@@ -193,11 +193,12 @@ struct DeviceListView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .principal) {
-            Image(.wledLogoAkemi)
+            // Color lockup in light mode, reversed lockup in dark mode (see the asset's appearances).
+            Image(.sinagLockup)
                 .resizable()
                 .scaledToFit()
-                .padding(3)
                 .frame(height: 50)
+                .accessibilityLabel("Sinag")
         }
         ToolbarItemGroup(placement: .primaryAction) {
             // 1. Add Button (Direct Access)
