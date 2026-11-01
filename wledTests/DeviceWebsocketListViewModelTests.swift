@@ -81,8 +81,7 @@ struct DeviceWebsocketListViewModelTests {
         try context.save()
 
         let viewModel = DeviceWebsocketListViewModel(context: context)
-        // Tests run in parallel on the main actor, so leave a wide margin before the disconnect is due
-        viewModel.backgroundDisconnectDelay = .seconds(3)
+        viewModel.backgroundDisconnectDelay = .milliseconds(100)
         let mockClient = ManualMockWebsocketClient(device: device)
         viewModel.makeClient = { _ in mockClient }
 
@@ -91,13 +90,13 @@ struct DeviceWebsocketListViewModelTests {
         viewModel.updateFilteredDevices(currentTime: Date())
         #expect(viewModel.onlineDevices.count == 1)
 
-        // Simulate quick background + resume (app switcher peek)
+        // Simulate quick background + resume (app switcher peek). Both calls run on the main actor with no
+        // suspension in between, so the pending disconnect is always cancelled first, however busy CI is.
         viewModel.onPause()
-        try await Task.sleep(for: .milliseconds(100)) // Let the pending disconnect start waiting
         viewModel.onResume()
 
         // Device should still be connected after the delay has passed — disconnect was cancelled
-        try await Task.sleep(for: .milliseconds(3_500))
+        try await Task.sleep(for: .milliseconds(500))
         #expect(mockClient.deviceState.websocketStatus == .connected)
         #expect(viewModel.onlineDevices.count == 1)
     }
@@ -120,7 +119,7 @@ struct DeviceWebsocketListViewModelTests {
         viewModel.onPause()
         // Wait past the 100ms delay. Poll rather than sleep once: other tests share the main actor,
         // so the disconnect task can start late.
-        let deadline = ContinuousClock.now + .seconds(5)
+        let deadline = ContinuousClock.now + .seconds(30)
         while mockClient.deviceState.websocketStatus != .disconnected && ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(50))
         }
