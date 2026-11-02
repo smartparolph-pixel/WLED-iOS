@@ -1,19 +1,27 @@
 import Foundation
 
-enum PackSetupResult: Equatable {
+enum PackSetupResult: Equatable, Sendable {
     /// - Parameters:
     ///   - playlistIds: Preset id of each pack's playlist on the device, keyed by playlist name.
     ///   - created: Number of presets and playlists saved now (0 when everything was already there).
     ///   - unavailable: Effects that could not be added (missing in the firmware or no free slot).
     ///   - verified: Everything was found in presets.json afterwards.
-    case ready(playlistIds: [String: Int], created: Int, unavailable: [String], verified: Bool)
+    ///   - custom: The user's own playlists (made in the app or on WLED's web page).
+    case ready(playlistIds: [String: Int], created: Int, unavailable: [String], verified: Bool, custom: [SavedPlaylist])
     /// None of the packs' effects exist on the device, or it has no free preset slots.
     case nothingAvailable
+    /// The device answered but its presets.json could not be read (e.g. it is damaged). Nothing is written
+    /// then, since saving into a file that cannot be read can lose every preset in it.
+    case presetsUnreadable
     case unreachable
+
+    static let unreadableMessage = String(
+        localized: "The device's presets file could not be read, so nothing was changed. Try again; if it keeps happening, check Presets on the device's web page."
+    )
 
     /// Effects that could not be added, and a warning if the device did not confirm the saves.
     var notes: String? {
-        guard case .ready(_, _, let unavailable, let verified) = self else { return nil }
+        guard case .ready(_, _, let unavailable, let verified, _) = self else { return nil }
         var parts: [String] = []
         if !unavailable.isEmpty {
             let names = unavailable.joined(separator: ", ")
@@ -35,17 +43,36 @@ enum PackSetupResult: Equatable {
                 .joined(separator: " ")
         case .nothingAvailable:
             return String(localized: "Nothing could be added: this device has none of these effects or no free preset slots.")
+        case .presetsUnreadable:
+            return Self.unreadableMessage
         case .unreachable:
             return String(localized: "Could not reach the device. Make sure it is on and try again.")
         }
     }
 }
 
+/// Last check per device address, valid while its presets.json is unchanged (`info.fs.pmt`).
+private actor PresetCheckCache {
+    static let shared = PresetCheckCache()
+    private var results: [String: (modified: Int64, result: PackSetupResult)] = [:]
+
+    func result(for address: String, modified: Int64?) -> PackSetupResult? {
+        guard let modified, let entry = results[address], entry.modified == modified else { return nil }
+        return entry.result
+    }
+
+    func store(_ result: PackSetupResult, for address: String, modified: Int64) {
+        results[address] = (modified, result)
+    }
+}
+
 /// Makes sure every `PresetPack` is on a device, without asking: missing presets and playlists are added,
-/// those already there (matched by name) are left alone, so it is safe to run every time.
+/// those already there (matched by name) are left alone, edits included, so it is safe to run every time.
 struct PresetPackInstaller {
-    /// Gives the device time to write presets.json between saves; back-to-back writes can corrupt it.
-    private static let saveGap: Duration = .milliseconds(500)
+    /// Gives the device time to write presets.json after a preset is saved (written right away).
+    private static let presetGap: Duration = .milliseconds(500)
+    /// Playlists are written in the device's main loop after the reply, so they get longer.
+    private static let playlistGap: Duration = .milliseconds(1000)
 
     let address: String
 
@@ -54,29 +81,68 @@ struct PresetPackInstaller {
     /// so the device never ends on a random effect.
     func ensureAll(play: PresetPack? = nil, packs: [PresetPack] = PresetPacks.all) async -> PackSetupResult {
         do {
-            let effects = try JSONSerialization.jsonObject(with: try await get("/json/eff")) as? [String] ?? []
-            guard !effects.isEmpty else { return .unreachable }
-            let plans = PresetPackPlanner.planAll(packs, presets: try await readPresets(), effects: effects)
-            if plans.allSatisfy({ $0.plan.playlist == .skip }) { return .nothingAvailable }
-            guard try await save(plans) else { return .unreachable }
-
-            var ids: [String: Int] = [:]
-            var created = 0
-            var unavailable: [String] = []
-            for (pack, plan) in plans {
-                if let id = plan.playlist.playlistId { ids[pack.playlist.name] = id }
-                created += plan.created.count
-                if case .save = plan.playlist { created += 1 }
-                for step in plan.unavailable where !unavailable.contains(step.name) { unavailable.append(step.name) }
+            let modified = try await presetsModified()
+            let cached = await PresetCheckCache.shared.result(for: address, modified: modified)
+            let result: PackSetupResult
+            if let cached {
+                result = cached
+            } else {
+                result = try await install(packs)
             }
-            let start = play ?? (created > 0 ? PresetPacks.playsAfterSetup : nil)
+            guard case .ready(let ids, let created, let unavailable, let verified, let custom) = result else {
+                return result
+            }
+            let start = play ?? (cached == nil && created > 0 ? PresetPacks.playsAfterSetup : nil)
             if let start, let id = ids[start.playlist.name] {
                 _ = try await post(try PresetPackPayloads.playJSON(id: id))
             }
-            let verified = created == 0 ? true : try await verify(plans)
-            return .ready(playlistIds: ids, created: created, unavailable: unavailable, verified: verified)
+            if cached == nil, verified, let now = try await presetsModified() {
+                let quiet = PackSetupResult.ready(
+                    playlistIds: ids, created: 0, unavailable: unavailable, verified: true, custom: custom
+                )
+                await PresetCheckCache.shared.store(quiet, for: address, modified: now)
+            }
+            return result
         } catch {
             return .unreachable
+        }
+    }
+
+    /// Adds what is missing, without starting anything.
+    private func install(_ packs: [PresetPack]) async throws -> PackSetupResult {
+        let effects = try JSONSerialization.jsonObject(with: try await get("/json/eff")) as? [String] ?? []
+        guard !effects.isEmpty else { return .unreachable }
+        guard let presets = try await readPresets() else { return .presetsUnreadable }
+        let plans = PresetPackPlanner.planAll(packs, presets: presets, effects: effects)
+        if plans.allSatisfy({ $0.plan.playlist == .skip }) { return .nothingAvailable }
+        guard try await save(plans) else { return .unreachable }
+
+        var ids: [String: Int] = [:]
+        var created = 0
+        var unavailable: [String] = []
+        for (pack, plan) in plans {
+            if let id = plan.playlist.playlistId { ids[pack.playlist.name] = id }
+            created += plan.created.count
+            if case .save = plan.playlist { created += 1 }
+            for step in plan.unavailable where !unavailable.contains(step.name) { unavailable.append(step.name) }
+        }
+        let verified = created == 0 ? true : try await verify(plans)
+        return .ready(
+            playlistIds: ids, created: created, unavailable: unavailable, verified: verified,
+            custom: DevicePresets(parsing: presets).custom
+        )
+    }
+
+    /// Puts a built-in playlist and its effects back as the app defines them, which also plays it.
+    /// - Returns: false if the device could not be reached or its presets.json could not be read.
+    func reset(_ pack: PresetPack) async -> Bool {
+        do {
+            let effects = try JSONSerialization.jsonObject(with: try await get("/json/eff")) as? [String] ?? []
+            guard !effects.isEmpty, let presets = try await readPresets() else { return false }
+            let plan = PresetPackPlanner.reset(pack, presets: presets, effects: effects)
+            return try await save([(pack, plan)])
+        } catch {
+            return false
         }
     }
 
@@ -86,19 +152,26 @@ struct PresetPackInstaller {
         return (try? await post(body)) ?? false
     }
 
-    /// Carries out the plans: new presets first, then each playlist.
+    /// Sends one state call (save, delete or preview).
+    func send(_ body: Data) async -> Bool {
+        (try? await post(body)) ?? false
+    }
+
+    /// Carries out the plans: every new preset first, then the playlists, which refer to them. Each save
+    /// gets time to be written, since back-to-back writes can damage presets.json.
     private func save(_ plans: [(pack: PresetPack, plan: PackPlan)]) async throws -> Bool {
-        for (pack, plan) in plans {
-            var bodies: [Data] = []
-            for case .create(let name, let id, let effectId) in plan.presets {
-                bodies.append(try PresetPackPayloads.presetJSON(id: id, name: name, effectId: effectId))
-            }
-            if case .save(let id, let presetIds) = plan.playlist {
-                bodies.append(try PresetPackPayloads.playlistJSON(pack.playlist, id: id, presetIds: presetIds))
-            }
-            for body in bodies {
+        for (_, plan) in plans {
+            for case .create(let name, let id, let effectId, let speed) in plan.presets {
+                let body = try PresetPackPayloads.presetJSON(id: id, name: name, effectId: effectId, speed: speed)
                 guard try await post(body) else { return false }
-                try await Task.sleep(for: Self.saveGap)
+                try await Task.sleep(for: Self.presetGap)
+            }
+        }
+        for (pack, plan) in plans {
+            if case .save(let id, let presetIds) = plan.playlist {
+                let body = try PresetPackPayloads.playlistJSON(pack.playlist, id: id, presetIds: presetIds)
+                guard try await post(body) else { return false }
+                try await Task.sleep(for: Self.playlistGap)
             }
         }
         return true
@@ -107,7 +180,8 @@ struct PresetPackInstaller {
     /// Reads presets.json back once. Planning again without any effects can only reuse what is on the
     /// device, so every playlist that was planned should now be found as is.
     private func verify(_ plans: [(pack: PresetPack, plan: PackPlan)]) async throws -> Bool {
-        let after = PresetPackPlanner.planAll(plans.map(\.pack), presets: try await readPresets(), effects: [])
+        guard let presets = try await readPresets() else { return false }
+        let after = PresetPackPlanner.planAll(plans.map(\.pack), presets: presets, effects: [])
         return zip(plans, after).allSatisfy { pair in
             if pair.0.plan.playlist == .skip { return true }
             if case .play = pair.1.plan.playlist { return true }
@@ -115,8 +189,22 @@ struct PresetPackInstaller {
         }
     }
 
-    private func readPresets() async throws -> [String: Any] {
-        (try JSONSerialization.jsonObject(with: try await get("/presets.json")) as? [String: Any]) ?? [:]
+    private func presetsModified() async throws -> Int64? {
+        let data = try await get("/json/info")
+        let info = try? JSONDecoder().decode(Info.self, from: data)
+        return info?.fileSystem?.presetLastModification.flatMap { $0 > 0 ? $0 : nil }
+    }
+
+    /// The device's presets, or nil if presets.json exists but cannot be parsed (an empty or cut-off file
+    /// included). A device that never had a preset has no presets.json, which counts as empty.
+    func readPresets() async throws -> [String: Any]? {
+        let (data, response) = try await URLSession.shared.data(
+            for: URLRequest(url: try url("/presets.json"), timeoutInterval: 10)
+        )
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if status == 404 { return [:] }
+        guard (200..<300).contains(status) else { throw URLError(.badServerResponse) }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
     private func url(_ path: String) throws -> URL {
@@ -124,7 +212,7 @@ struct PresetPackInstaller {
         return url
     }
 
-    private func get(_ path: String) async throws -> Data {
+    func get(_ path: String) async throws -> Data {
         try await URLSession.shared.data(for: URLRequest(url: try url(path), timeoutInterval: 10)).0
     }
 

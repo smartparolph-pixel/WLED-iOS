@@ -1,13 +1,14 @@
 import SwiftUI
 
-/// The device's playlists (`PresetPacks.all`). Any that are missing are added without asking when this
-/// opens; tapping one plays it, and the one playing is ticked.
+/// The device's playlists (`PresetPacks.all`, then the user's own). Any built-in ones that are missing are
+/// added without asking when this opens; tapping one plays it, and the one playing is ticked. Edit, at the
+/// bottom, opens `PresetEditorView`.
 struct PresetPacksView: View {
     @ObservedObject var device: DeviceWithState
     /// Nil while the playlists are being checked (and added if missing).
     @State private var setup: PackSetupResult?
-    /// Playlist name of the playlist being started, if any.
-    @State private var starting: String?
+    /// Id of the playlist being started, if any.
+    @State private var starting: Int?
     @State private var playFailed = false
 
     init(device: DeviceWithState) {
@@ -25,18 +26,19 @@ struct PresetPacksView: View {
                         ProgressView()
                         Text("Preparing playlists…")
                     }
-                case .ready(let playlistIds, _, _, _):
+                case .ready(let playlistIds, _, _, _, let custom):
                     let playingId = device.stateInfo?.state.selectedPlaylistId.map { Int($0) }
-                    ForEach(PresetPacks.all, id: \.playlist.name) { pack in
-                        let id = playlistIds[pack.playlist.name]
+                    let rows: [(String, Int?)] = PresetPacks.all.map { ($0.playlist.name, playlistIds[$0.playlist.name]) }
+                        + custom.map { ($0.name, Optional($0.id)) }
+                    ForEach(rows, id: \.0) { name, id in
                         Button {
-                            play(pack, id: id)
+                            play(id: id)
                         } label: {
                             HStack {
-                                Text(pack.playlist.name)
+                                Text(name)
                                     .foregroundStyle(id != nil && id == playingId ? Color.accentColor : Color.primary)
                                 Spacer()
-                                if starting == pack.playlist.name {
+                                if let id, starting == id {
                                     ProgressView()
                                 } else if id != nil && id == playingId {
                                     Image(systemName: "checkmark")
@@ -47,11 +49,11 @@ struct PresetPacksView: View {
                         }
                         .disabled(id == nil || starting != nil)
                     }
-                case .nothingAvailable, .unreachable:
+                case .nothingAvailable, .presetsUnreadable, .unreachable:
                     if let setup {
                         Text(setup.setupMessage)
                     }
-                    if setup == .unreachable {
+                    if setup == .unreachable || setup == .presetsUnreadable {
                         Button("Retry Connection") { prepare() }
                     }
                 }
@@ -71,7 +73,33 @@ struct PresetPacksView: View {
         }
         .navigationTitle("Presets & Playlists")
         .navigationBarTitleDisplayMode(.inline)
-        .task { prepare() }
+        .safeAreaInset(edge: .bottom) {
+            if let address, case .ready = setup {
+                NavigationLink {
+                    PresetEditorView(address: address)
+                } label: {
+                    Label("Edit", systemImage: "pencil")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+                .background(.bar)
+            }
+        }
+        // Runs again when coming back from the editor: cheap when nothing changed (presets.json's time).
+        .task { await refresh() }
+    }
+
+    /// Like `prepare`, but keeps showing the current list while checking.
+    private func refresh() async {
+        guard let address, case .ready = setup else {
+            prepare()
+            return
+        }
+        let result = await PresetPackInstaller(address: address).ensureAll()
+        if case .ready = result { setup = result }
     }
 
     /// Adds any missing playlists without asking.
@@ -86,9 +114,9 @@ struct PresetPacksView: View {
         }
     }
 
-    private func play(_ pack: PresetPack, id: Int?) {
+    private func play(id: Int?) {
         guard let address, let id else { return }
-        starting = pack.playlist.name
+        starting = id
         playFailed = false
         Task {
             playFailed = !(await PresetPackInstaller(address: address).play(id: id))

@@ -5,6 +5,8 @@ struct EffectPreset: Equatable {
     let name: String
     /// The effect's name exactly as the firmware lists it in `/json/eff`.
     let effect: String
+    /// Overrides the effect's default speed, when that default does not suit a playlist.
+    var speed: Int?
 }
 
 /// A playlist that plays the pack's presets in order.
@@ -24,6 +26,8 @@ struct PlaylistSpec: Equatable {
 struct PresetPack: Equatable {
     let presets: [EffectPreset]
     let playlist: PlaylistSpec
+    /// Kept exactly as defined: not editable in the app, and put back if changed on the device.
+    var locked = false
 }
 
 enum PresetPacks {
@@ -31,6 +35,10 @@ enum PresetPacks {
     private static let defaultFade = 1
     private static let slowSeconds = 60
     private static let slowFade = 3
+
+    /// Speeds that differ from the effect's default. Sunrise's speed is its length in minutes (60 by
+    /// default), which looks dark for most of a 60 s playlist slot; 1 makes it rise within the slot.
+    private static let speeds = ["Sunrise": 1]
 
     /// A pack whose presets are named after their effects, so an effect used by several playlists is saved
     /// once. The playlist name starts with `icon`, which is also its quick-load button.
@@ -42,7 +50,7 @@ enum PresetPacks {
         fade: Int = defaultFade
     ) -> PresetPack {
         PresetPack(
-            presets: effects.map { EffectPreset(name: $0, effect: $0) },
+            presets: effects.map { EffectPreset(name: $0, effect: $0, speed: speeds[$0]) },
             playlist: PlaylistSpec(name: "\(icon) \(name)", quickLoad: icon, secondsPerPreset: seconds, fadeSeconds: fade)
         )
     }
@@ -81,10 +89,32 @@ enum PresetPacks {
         "🎃", "Spooky Switch", ["Halloween Eyes", "Lightning", "Strobe Mega", "Washing Machine", "Dancing Shadows"]
     )
 
-    static let all = [
+    private static let themed = [
         twinkleTonight, skyFullOfSparks, chillMode, rainbowRush, northernGlow,
         flameOn, beatDrop, cometChasers, riseAndShine, spookySwitch
     ]
+
+    /// Every effect of the other playlists in a new random order each loop. It cannot be edited.
+    static let random: PresetPack = {
+        var seen = Set<String>()
+        let presets = themed.flatMap(\.presets).filter { seen.insert($0.name).inserted }
+        return PresetPack(
+            presets: presets,
+            playlist: PlaylistSpec(
+                name: "🎲 Random", quickLoad: "🎲", secondsPerPreset: defaultSeconds, fadeSeconds: defaultFade,
+                shuffle: true
+            ),
+            locked: true
+        )
+    }()
+
+    static let all = themed + [random]
+
+    /// The built-in pack whose playlist has this name, if any.
+    static func builtIn(named name: String) -> PresetPack? { all.first { $0.playlist.name == name } }
+
+    /// The app's speed override for a preset named after an effect, if any.
+    static func speed(forPreset name: String) -> Int? { speeds[name] }
 
     /// The default playlist: started after Set Up New Device and when playlists are first added.
     static let playsAfterSetup = skyFullOfSparks
@@ -94,7 +124,8 @@ enum PresetPacks {
 enum PresetStep: Equatable {
     /// A preset with this name is already on the device; it is used as is.
     case reuse(name: String, id: Int)
-    case create(name: String, id: Int, effectId: Int)
+    /// Save at `id`: a new preset, or one put back to its defaults.
+    case create(name: String, id: Int, effectId: Int, speed: Int? = nil)
     /// The device's firmware has no effect with this name.
     case missingEffect(name: String)
     /// All 250 preset slots are taken.
@@ -102,13 +133,14 @@ enum PresetStep: Equatable {
 
     var name: String {
         switch self {
-        case .reuse(let name, _), .create(let name, _, _), .missingEffect(let name), .noFreeSlot(let name): return name
+        case .reuse(let name, _), .create(let name, _, _, _), .missingEffect(let name), .noFreeSlot(let name):
+            return name
         }
     }
 
     var presetId: Int? {
         switch self {
-        case .reuse(_, let id), .create(_, let id, _): return id
+        case .reuse(_, let id), .create(_, let id, _, _): return id
         case .missingEffect, .noFreeSlot: return nil
         }
     }
@@ -116,9 +148,9 @@ enum PresetStep: Equatable {
 
 /// What to do for the playlist.
 enum PlaylistStep: Equatable {
-    /// Already on the device with exactly these presets; nothing to save.
+    /// Already on the device (possibly edited by the user, which is kept); nothing to save.
     case play(id: Int)
-    /// Save at `id` (new, or replacing a same-named playlist whose presets changed), which also starts it.
+    /// Save at `id` (new, reset to default, or a locked playlist that was changed), which also starts it.
     case save(id: Int, presetIds: [Int])
     /// None of the presets could be added, or no free slot is left.
     case skip
@@ -144,7 +176,8 @@ struct PackPlan: Equatable {
 }
 
 /// Decides what to add to a device, so a pack can be installed any number of times without making
-/// duplicates. Matching is by name: a preset or playlist with the same name is reused, not added again.
+/// duplicates. Matching is by name: a preset or playlist with the same name is reused, not added again,
+/// so the user's edits to it are kept. Only a locked playlist is put back if it changed.
 enum PresetPackPlanner {
     static let maxPresetId = 250
 
@@ -154,8 +187,10 @@ enum PresetPackPlanner {
         var device = presets
         return packs.map { pack in
             let packPlan = Self.plan(pack, presets: device, effects: effects)
-            for case .create(let name, let id, _) in packPlan.presets {
-                device["\(id)"] = ["n": name]
+            for case .create(let name, let id, _, let speed) in packPlan.presets {
+                var seg: [String: Any] = [:]
+                if let speed { seg["sx"] = speed }
+                device["\(id)"] = ["n": name, "seg": seg] as [String: Any]
             }
             if case .save(let id, let presetIds) = packPlan.playlist {
                 device["\(id)"] = ["n": pack.playlist.name, "playlist": ["ps": presetIds]] as [String: Any]
@@ -168,6 +203,16 @@ enum PresetPackPlanner {
     ///   - presets: The device's `/presets.json`.
     ///   - effects: The device's `/json/eff`: effect names, index = effect id.
     static func plan(_ pack: PresetPack, presets: [String: Any], effects: [String]) -> PackPlan {
+        plan(pack, presets: presets, effects: effects, reset: false)
+    }
+
+    /// "Reset to default": saves the pack's presets and playlist again as defined, at the ids they have
+    /// now (or new ones if missing), undoing the user's edits.
+    static func reset(_ pack: PresetPack, presets: [String: Any], effects: [String]) -> PackPlan {
+        plan(pack, presets: presets, effects: effects, reset: true)
+    }
+
+    private static func plan(_ pack: PresetPack, presets: [String: Any], effects: [String], reset: Bool) -> PackPlan {
         let existing = existingPresets(presets)
         var taken = Set(existing.keys)
         func nextFree() -> Int? {
@@ -177,20 +222,25 @@ enum PresetPackPlanner {
         }
 
         let steps: [PresetStep] = pack.presets.map { preset in
-            if let id = existing.first(where: { $0.value.name == preset.name })?.key {
-                return .reuse(name: preset.name, id: id)
+            let current = existing.first { $0.value.name == preset.name }
+            let effectId = effects.firstIndex(of: preset.effect)
+            // A preset the app saved before its speed override existed has no speed: give it the override.
+            let outdated = current != nil && preset.speed != nil && current?.value.speed == nil
+            if let current, !reset, !(outdated && effectId != nil) {
+                return .reuse(name: preset.name, id: current.key)
             }
-            guard let effectId = effects.firstIndex(of: preset.effect) else { return .missingEffect(name: preset.name) }
-            guard let id = nextFree() else { return .noFreeSlot(name: preset.name) }
-            return .create(name: preset.name, id: id, effectId: effectId)
+            guard let effectId else { return .missingEffect(name: preset.name) }
+            guard let id = current?.key ?? nextFree() else { return .noFreeSlot(name: preset.name) }
+            return .create(name: preset.name, id: id, effectId: effectId, speed: preset.speed)
         }
 
         let presetIds = steps.compactMap(\.presetId)
         let current = existing.first { $0.value.name == pack.playlist.name }
+        let enforce = reset || pack.locked
         let playlist: PlaylistStep
         if presetIds.isEmpty {
             playlist = .skip
-        } else if let current, current.value.playlistPresets == presetIds {
+        } else if let current, let saved = current.value.playlistPresets, !enforce || saved == presetIds {
             playlist = .play(id: current.key)
         } else if let current {
             playlist = .save(id: current.key, presetIds: presetIds)
@@ -205,6 +255,7 @@ enum PresetPackPlanner {
     private struct Existing {
         let name: String
         let playlistPresets: [Int]?
+        let speed: Int?
     }
 
     private static func existingPresets(_ presets: [String: Any]) -> [Int: Existing] {
@@ -214,7 +265,10 @@ enum PresetPackPlanner {
                   let preset = value as? [String: Any], !preset.isEmpty else { continue }
             let name = (preset["n"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Preset \(id)"
             let playlist = (preset["playlist"] as? [String: Any])?["ps"] as? [Any]
-            result[id] = Existing(name: name, playlistPresets: playlist?.compactMap { ($0 as? NSNumber)?.intValue })
+            let speed = ((preset["seg"] as? [String: Any])?["sx"] as? NSNumber)?.intValue
+            result[id] = Existing(
+                name: name, playlistPresets: playlist?.compactMap { ($0 as? NSNumber)?.intValue }, speed: speed
+            )
         }
         return result
     }
@@ -224,12 +278,12 @@ enum PresetPackPlanner {
 enum PresetPackPayloads {
     private static let tenthsPerSecond = 10
 
-    /// Saves a preset that turns the light on and runs the effect with the effect's default settings.
-    static func presetJSON(id: Int, name: String, effectId: Int) throws -> Data {
-        try json([
-            "psave": id, "n": name, "o": true, "on": true,
-            "seg": ["fx": effectId, "fxdef": true] as [String: Any]
-        ])
+    /// Saves a preset that turns the light on and runs the effect with its default settings (the firmware
+    /// applies `fxdef` before `sx`, so a speed override wins).
+    static func presetJSON(id: Int, name: String, effectId: Int, speed: Int? = nil) throws -> Data {
+        var seg: [String: Any] = ["fx": effectId, "fxdef": true]
+        if let speed { seg["sx"] = speed }
+        return try json(["psave": id, "n": name, "o": true, "on": true, "seg": seg])
     }
 
     /// Saves the playlist; the device starts playing it right away.
