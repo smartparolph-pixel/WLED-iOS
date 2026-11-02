@@ -134,7 +134,7 @@ struct PresetPacksTests {
             let icon = try #require(pack.playlist.quickLoad)
             #expect(pack.playlist.name.hasPrefix("\(icon) "), "\(pack.playlist.name)")
         }
-        #expect(PresetPacks.playsAfterSetup.playlist.name == "✨ Twinkle Tonight")
+        #expect(PresetPacks.playsAfterSetup.playlist.name == "🎆 Sky Full of Sparks")
     }
 
     @Test func slowPlaylistsPlayLonger() {
@@ -154,12 +154,32 @@ struct PresetPacksTests {
         #expect(plan.created.count == 4)
     }
 
-    @Test func summaryOfAddAll() {
-        let done = PackInstallResult.done(playlistName: "", created: [], unavailable: [], verified: true)
-        let outcomes = PresetPacks.all.map { PackOutcome(pack: $0, result: $0 == PresetPacks.flameOn ? .unreachable : done) }
-        let text = PackOutcome.summary(outcomes)
-        #expect(text.contains("9"))
-        #expect(text.contains("✨ Twinkle Tonight"))
-        #expect(text.contains("🔥 Flame On"))
+    @Test func planAllSavesEverythingOnceFromOneRead() {
+        let plans = PresetPackPlanner.planAll(PresetPacks.all, presets: [:], effects: effects)
+        // 48 distinct effects (Aurora is shared) plus 10 playlists, on ids 1...58 without gaps or clashes.
+        let created = plans.flatMap { $0.plan.created.compactMap(\.presetId) }
+        let playlists = plans.compactMap { $0.plan.playlist.playlistId }
+        #expect(created.count == 48)
+        #expect((created + playlists).sorted() == Array(1...58))
+        let aurora = plans.flatMap(\.plan.presets).filter { $0.name == "Aurora" }
+        #expect(aurora.filter { if case .create = $0 { return true } else { return false } }.count == 1)
+        #expect(aurora.filter { if case .reuse = $0 { return true } else { return false } }.count == 1)
+    }
+
+    @Test func planAllOnAFullyPreparedDeviceChangesNothing() {
+        // Simulate the device after the first run, then plan again: nothing is created or saved.
+        var device: [String: Any] = [:]
+        for (pack, plan) in PresetPackPlanner.planAll(PresetPacks.all, presets: [:], effects: effects) {
+            for case .create(let name, let id, _) in plan.presets { device["\(id)"] = ["n": name] }
+            if case .save(let id, let presetIds) = plan.playlist {
+                device["\(id)"] = ["n": pack.playlist.name, "playlist": ["ps": presetIds]] as [String: Any]
+            }
+        }
+        let again = PresetPackPlanner.planAll(PresetPacks.all, presets: device, effects: effects)
+        #expect(again.allSatisfy { pair in
+            guard pair.plan.created.isEmpty, case .play = pair.plan.playlist else { return false }
+            return true
+        })
+        #expect(Set(again.compactMap { $0.plan.playlist.playlistId }).count == 10)
     }
 }

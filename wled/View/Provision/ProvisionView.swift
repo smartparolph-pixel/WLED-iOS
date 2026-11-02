@@ -14,8 +14,8 @@ struct ProvisionView: View {
                         form(ssidError: ssidError, errorMessage: errorMessage)
                     case .working(let progress):
                         working(progress)
-                    case .success(let deviceName, let packResults):
-                        success(deviceName, packResults: packResults)
+                    case .success(let deviceName, let presets):
+                        success(deviceName, presets: presets)
                     }
                 }
                 .padding()
@@ -102,22 +102,20 @@ struct ProvisionView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func success(_ name: String, packResults: [PackOutcome]?) -> some View {
+    private func success(_ name: String, presets: PackSetupResult?) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.seal")
                 .font(.system(size: 50))
                 .foregroundStyle(.green)
                 .padding()
             Text("\(name) was added")
-            if let packResults {
-                if !packResults.isEmpty {
-                    Text(PackOutcome.summary(packResults))
-                        .multilineTextAlignment(.center)
-                }
+            if let presets {
+                Text(presets.setupMessage)
+                    .multilineTextAlignment(.center)
             } else {
                 HStack(spacing: 8) {
                     ProgressView()
-                    Text("Adding all playlists…")
+                    Text("Preparing playlists…")
                 }
             }
             Text("Tip: protect your device by setting a settings PIN and enabling the OTA lock under Config → Security & Updates.")

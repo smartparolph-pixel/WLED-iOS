@@ -86,8 +86,8 @@ enum PresetPacks {
         flameOn, beatDrop, cometChasers, riseAndShine, spookySwitch
     ]
 
-    /// The pack left playing after Set Up New Device adds all of them.
-    static let playsAfterSetup = twinkleTonight
+    /// The default playlist: started after Set Up New Device and when playlists are first added.
+    static let playsAfterSetup = skyFullOfSparks
 }
 
 /// What to do for one preset of a pack.
@@ -116,12 +116,22 @@ enum PresetStep: Equatable {
 
 /// What to do for the playlist.
 enum PlaylistStep: Equatable {
-    /// Already on the device with exactly these presets: only start it.
+    /// Already on the device with exactly these presets; nothing to save.
     case play(id: Int)
     /// Save at `id` (new, or replacing a same-named playlist whose presets changed), which also starts it.
     case save(id: Int, presetIds: [Int])
     /// None of the presets could be added, or no free slot is left.
     case skip
+}
+
+extension PlaylistStep {
+    /// The playlist's preset id once the plan is carried out, or nil if it is skipped.
+    var playlistId: Int? {
+        switch self {
+        case .play(let id), .save(let id, _): return id
+        case .skip: return nil
+        }
+    }
 }
 
 struct PackPlan: Equatable {
@@ -137,6 +147,22 @@ struct PackPlan: Equatable {
 /// duplicates. Matching is by name: a preset or playlist with the same name is reused, not added again.
 enum PresetPackPlanner {
     static let maxPresetId = 250
+
+    /// Plans several packs from one read of `/presets.json`: each pack sees what the packs before it will
+    /// save, so shared effects (e.g. Aurora) are saved once and ids never collide.
+    static func planAll(_ packs: [PresetPack], presets: [String: Any], effects: [String]) -> [(pack: PresetPack, plan: PackPlan)] {
+        var device = presets
+        return packs.map { pack in
+            let packPlan = Self.plan(pack, presets: device, effects: effects)
+            for case .create(let name, let id, _) in packPlan.presets {
+                device["\(id)"] = ["n": name]
+            }
+            if case .save(let id, let presetIds) = packPlan.playlist {
+                device["\(id)"] = ["n": pack.playlist.name, "playlist": ["ps": presetIds]] as [String: Any]
+            }
+            return (pack, packPlan)
+        }
+    }
 
     /// - Parameters:
     ///   - presets: The device's `/presets.json`.

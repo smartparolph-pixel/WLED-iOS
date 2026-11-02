@@ -18,8 +18,8 @@ final class ProvisionViewModel: ObservableObject {
     enum Step: Equatable {
         case form(ssidError: String = "", errorMessage: String = "")
         case working(ProvisioningProgress)
-        /// `packResults` is nil while the preset packs are still being added to the new device.
-        case success(deviceName: String, packResults: [PackOutcome]?)
+        /// `presets` is nil while the playlists are still being added to the new device.
+        case success(deviceName: String, presets: PackSetupResult?)
 
         var isForm: Bool {
             if case .form = self { return true }
@@ -61,8 +61,8 @@ final class ProvisionViewModel: ObservableObject {
                 let context = PersistenceController.shared.container.viewContext
                 let device = context.object(with: id) as? Device
                 let name = device?.displayName ?? ""
-                step = .success(deviceName: name, packResults: nil)
-                step = .success(deviceName: name, packResults: await addPresetPacks(address: device?.address))
+                step = .success(deviceName: name, presets: nil)
+                step = .success(deviceName: name, presets: await addPresetPacks(address: device?.address))
             } catch is CancellationError {
                 // Dismissed by the user; nothing to show.
             } catch let error as ProvisioningError {
@@ -73,10 +73,10 @@ final class ProvisionViewModel: ObservableObject {
         }
     }
 
-    /// Preloads every preset pack on the new device, leaving `PresetPacks.playsAfterSetup` playing.
-    private func addPresetPacks(address: String?) async -> [PackOutcome] {
-        guard let address else { return [] }
-        return await PresetPackInstaller(address: address).installAll()
+    /// Adds the playlists to the new device and starts the default, `PresetPacks.playsAfterSetup`.
+    private func addPresetPacks(address: String?) async -> PackSetupResult {
+        guard let address else { return .unreachable }
+        return await PresetPackInstaller(address: address).ensureAll(play: PresetPacks.playsAfterSetup)
     }
 
     func cancel() {

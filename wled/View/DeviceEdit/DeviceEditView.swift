@@ -76,7 +76,7 @@ struct DeviceEditView: View {
                 .padding(.top)
 
                 NavigationLink {
-                    PresetPacksView(device: device.device)
+                    PresetPacksView(device: device)
                 } label: {
                     Label("Presets & Playlists", systemImage: "sparkles")
                         .frame(maxWidth: .infinity)

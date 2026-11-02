@@ -90,7 +90,7 @@ struct DeviceShortcutBar: View {
     private func destination(_ opened: Opened) -> some View {
         switch opened.shortcut {
         case .schedule: ScheduleListView(device: opened.device)
-        case .presets: PresetPacksView(device: opened.device.device)
+        case .presets: PresetPacksView(device: opened.device)
         case .timeZone: TimezonePickerView(device: opened.device.device)
         }
     }
