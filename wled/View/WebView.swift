@@ -69,7 +69,8 @@ struct WebView: UIViewRepresentable {
 
             guard let htmlPath = Bundle.main.path(forResource: "errorPage.\(langStr)", ofType: "html") else { return }
             let htmlUrl = URL(fileURLWithPath: htmlPath, isDirectory: false)
-            webView.loadFileURL(htmlUrl, allowingReadAccessTo: htmlUrl)
+            // Read access to the folder, so the page's stylesheet and logo load along with it.
+            webView.loadFileURL(htmlUrl, allowingReadAccessTo: htmlUrl.deletingLastPathComponent())
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences, decisionHandler: @escaping @MainActor (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
