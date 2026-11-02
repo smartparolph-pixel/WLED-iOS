@@ -206,12 +206,24 @@ final class ScheduleViewModel: ObservableObject {
             error = String(localized: "The device has no free preset slot for the on/off action.")
             return nil
         }
+        // The device applies a save request to the lights as it saves it, so saving "Schedule: Off" would
+        // switch the light off; it is switched back to how it was right after.
+        let wasOn = await currentPower()
         guard let body = try? SchedulePresets.saveJSON(id: slot, name: name, on: on),
               let status = try? await post("/json/state", body: body), (200..<300).contains(status) else {
             return nil
         }
+        if let wasOn, wasOn != on, let restore = try? SchedulePresets.powerJSON(on: wasOn) {
+            _ = try? await post("/json/state", body: restore)
+        }
         presets[slot] = name
         return slot
+    }
+
+    private func currentPower() async -> Bool? {
+        guard let response = try? await get("/json/state"),
+              let state = try? JSONSerialization.jsonObject(with: response.0) as? [String: Any] else { return nil }
+        return state["on"] as? Bool
     }
 
     /// Writes the full list; also turns on internet time (with the phone's zone) if it is off.

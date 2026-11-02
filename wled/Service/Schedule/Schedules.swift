@@ -193,6 +193,11 @@ enum SchedulePresets {
             options: [.sortedKeys]
         )
     }
+
+    /// Body for `POST /json/state` that only switches the light on or off.
+    static func powerJSON(on: Bool) throws -> Data {
+        try JSONSerialization.data(withJSONObject: ["on": on])
+    }
 }
 
 /// Body for `POST /json/cfg` that replaces the schedule list and optionally fixes time settings.

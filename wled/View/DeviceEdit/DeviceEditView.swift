@@ -73,7 +73,16 @@ struct DeviceEditView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .padding(.vertical)
+                .padding(.top)
+
+                NavigationLink {
+                    PresetPacksView(device: device.device)
+                } label: {
+                    Label("Presets & Playlists", systemImage: "sparkles")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .padding(.bottom)
 
                 Text("Mac Address: \(device.device.macAddress ?? "Unknown")")
                     .font(.caption)

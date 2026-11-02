@@ -18,7 +18,8 @@ final class ProvisionViewModel: ObservableObject {
     enum Step: Equatable {
         case form(ssidError: String = "", errorMessage: String = "")
         case working(ProvisioningProgress)
-        case success(deviceName: String)
+        /// `packResults` is nil while the preset packs are still being added to the new device.
+        case success(deviceName: String, packResults: [PackInstallResult]?)
 
         var isForm: Bool {
             if case .form = self { return true }
@@ -58,8 +59,10 @@ final class ProvisionViewModel: ObservableObject {
                     self?.step = .working(progress)
                 }
                 let context = PersistenceController.shared.container.viewContext
-                let name = (context.object(with: id) as? Device)?.displayName ?? ""
-                step = .success(deviceName: name)
+                let device = context.object(with: id) as? Device
+                let name = device?.displayName ?? ""
+                step = .success(deviceName: name, packResults: nil)
+                step = .success(deviceName: name, packResults: await addPresetPacks(address: device?.address))
             } catch is CancellationError {
                 // Dismissed by the user; nothing to show.
             } catch let error as ProvisioningError {
@@ -68,6 +71,16 @@ final class ProvisionViewModel: ObservableObject {
                 step = .form(errorMessage: ProvisioningError.unknown.localizedDescription)
             }
         }
+    }
+
+    /// Preloads the preset packs on the new device; its last playlist is left playing.
+    private func addPresetPacks(address: String?) async -> [PackInstallResult] {
+        guard let address else { return [] }
+        var results: [PackInstallResult] = []
+        for pack in PresetPacks.all {
+            results.append(await PresetPackInstaller(address: address).install(pack))
+        }
+        return results
     }
 
     func cancel() {

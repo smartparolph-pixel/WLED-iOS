@@ -97,6 +97,7 @@ struct ScheduleTests {
         #expect(SchedulePresets.freeSlot(names) == 249)
         let body = try #require(String(data: try SchedulePresets.saveJSON(id: 249, name: "Schedule: Off", on: false), encoding: .utf8))
         #expect(body == #"{"n":"Schedule: Off","o":true,"on":false,"psave":249}"#)
+        #expect(String(data: try SchedulePresets.powerJSON(on: true), encoding: .utf8) == #"{"on":true}"#)
     }
 
     @Test func configPayload() throws {
