@@ -10,6 +10,10 @@ struct PresetPacksView: View {
     /// Id of the playlist being started, if any.
     @State private var starting: Int?
     @State private var playFailed = false
+    @State private var confirmingRepair = false
+    @State private var repairing = false
+    /// Why the last repair did not work, if it did not.
+    @State private var repairProblem: String?
 
     init(device: DeviceWithState) {
         _device = ObservedObject(wrappedValue: device)
@@ -49,11 +53,25 @@ struct PresetPacksView: View {
                         }
                         .disabled(id == nil || starting != nil)
                     }
-                case .nothingAvailable, .presetsUnreadable, .unreachable:
+                case .presetsUnreadable(let kept, let dropped, let problem):
+                    Text(PackSetupResult.damagedMessage(kept: kept, dropped: dropped))
+                    Text("Details: \(problem)")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    if let repairProblem {
+                        Text(repairProblem).foregroundStyle(.red)
+                    }
+                    if repairing {
+                        ProgressView()
+                    } else {
+                        Button("Repair") { confirmingRepair = true }
+                    }
+                    Button("Retry Connection") { prepare() }
+                case .nothingAvailable, .unreachable:
                     if let setup {
                         Text(setup.setupMessage)
                     }
-                    if setup == .unreachable || setup == .presetsUnreadable {
+                    if setup == .unreachable {
                         Button("Retry Connection") { prepare() }
                     }
                 }
@@ -73,6 +91,14 @@ struct PresetPacksView: View {
         }
         .navigationTitle("Presets & Playlists")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Repair presets file?", isPresented: $confirmingRepair) {
+            Button("Repair") { repair() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            if case .presetsUnreadable(let kept, let dropped, _) = setup {
+                Text("The device's presets.json will be replaced with a clean copy holding the \(kept) intact presets and playlists. The \(dropped) damaged parts cannot be recovered.")
+            }
+        }
         .safeAreaInset(edge: .bottom) {
             if let address, case .ready = setup {
                 NavigationLink {
@@ -111,6 +137,25 @@ struct PresetPacksView: View {
         setup = nil
         Task {
             setup = await PresetPackInstaller(address: address).ensureAll()
+        }
+    }
+
+    /// Rebuilds a damaged presets.json from its intact entries, then checks the playlists again.
+    private func repair() {
+        guard let address else { return }
+        repairing = true
+        repairProblem = nil
+        Task {
+            let result = await PresetPackInstaller(address: address).repairPresets()
+            repairing = false
+            switch result {
+            case .repaired, .notNeeded:
+                prepare()
+            case .locked:
+                repairProblem = String(localized: "This device has a settings PIN. Unlock it on the device's web page (Config), then try again.")
+            case .failed:
+                repairProblem = String(localized: "Could not repair the file. Check the connection to the device and try again.")
+            }
         }
     }
 

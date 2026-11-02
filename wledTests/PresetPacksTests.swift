@@ -302,4 +302,43 @@ struct PresetPacksTests {
         #expect(list["r"] as? Bool == true)
         #expect(String(data: try PresetEditorPayloads.deleteJSON(id: 7), encoding: .utf8) == #"{"pdel":7}"#)
     }
+
+    // MARK: - Repair
+
+    private static let goodFile = #"{"0":{},"1":{"n":"Twinklefox","on":true,"seg":{"fx":80,"fxdef":true}},"6":{"n":"✨ Twinkle Tonight","playlist":{"ps":[1]}}}"#
+
+    @Test func validFileIsKeptAsIs() {
+        let data = Data(Self.goodFile.utf8)
+        #expect(PresetsFileRepair.problem(data) == nil)
+        let result = PresetsFileRepair.repair(data)
+        #expect(result.ids == ["0", "1", "6"])
+        #expect(result.kept == 2)
+        #expect(result.dropped == 0)
+    }
+
+    @Test func leftoverTextAfterTheLastEntryIsDropped() throws {
+        let data = Data((Self.goodFile + #"ard":true}}}"#).utf8)
+        #expect(PresetsFileRepair.problem(data) != nil)
+        let result = PresetsFileRepair.repair(data)
+        #expect(result.ids == ["0", "1", "6"])
+        #expect(PresetsFileRepair.problem(try result.json()) == nil)
+    }
+
+    @Test func cutOffEntryInTheMiddleIsDroppedAndTheRestKept() {
+        let text = #"{"0":{},"1":{"n":"Twinklefox","seg":{"fx":80,"fxd ,"2":{"n":"Fairy","seg":{"fx":49}},"3":{"n":"Glitter"}}"#
+        let result = PresetsFileRepair.repair(Data(text.utf8))
+        #expect(result.ids == ["0", "2", "3"])
+        #expect(result.dropped == 1)
+    }
+
+    @Test func repeatedIdKeepsTheFirstLikeTheFirmware() {
+        let result = PresetsFileRepair.repair(Data(#"{"0":{},"5":{"n":"First"},"5":{"n":"Second"}}"#.utf8))
+        #expect((result.presets["5"] as? [String: Any])?["n"] as? String == "First")
+        #expect(result.dropped == 1)
+    }
+
+    @Test func bracesInsideNamesDoNotConfuseTheScan() {
+        let result = PresetsFileRepair.repair(Data(#"{"0":{},"7":{"n":"My {fun} \"preset\"","seg":{"fx":9}}}"#.utf8))
+        #expect((result.presets["7"] as? [String: Any])?["n"] as? String == "My {fun} \"preset\"")
+    }
 }

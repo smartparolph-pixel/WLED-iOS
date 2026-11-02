@@ -10,14 +10,21 @@ enum PackSetupResult: Equatable, Sendable {
     case ready(playlistIds: [String: Int], created: Int, unavailable: [String], verified: Bool, custom: [SavedPlaylist])
     /// None of the packs' effects exist on the device, or it has no free preset slots.
     case nothingAvailable
-    /// The device answered but its presets.json could not be read (e.g. it is damaged). Nothing is written
-    /// then, since saving into a file that cannot be read can lose every preset in it.
-    case presetsUnreadable
+    /// The device answered but its presets.json is not valid JSON (damaged). Nothing is written then, since
+    /// saving into a file that cannot be read can lose every preset in it. `repairPresets()` can rebuild it
+    /// from the `kept` entries that are intact, leaving out `dropped` damaged parts. `problem` says where the
+    /// file stops being valid, for diagnosis.
+    case presetsUnreadable(kept: Int, dropped: Int, problem: String)
     case unreachable
 
+    /// For the editor, which only reads: the Presets & Playlists screen offers the repair.
     static let unreadableMessage = String(
         localized: "The device's presets file could not be read, so nothing was changed. Try again; if it keeps happening, check Presets on the device's web page."
     )
+
+    static func damagedMessage(kept: Int, dropped: Int) -> String {
+        String(localized: "This device's presets file is damaged, so nothing was changed. Repair keeps the \(kept) presets and playlists that are intact and removes \(dropped) damaged parts; missing playlists are then added again.")
+    }
 
     /// Effects that could not be added, and a warning if the device did not confirm the saves.
     var notes: String? {
@@ -43,8 +50,8 @@ enum PackSetupResult: Equatable, Sendable {
                 .joined(separator: " ")
         case .nothingAvailable:
             return String(localized: "Nothing could be added: this device has none of these effects or no free preset slots.")
-        case .presetsUnreadable:
-            return Self.unreadableMessage
+        case .presetsUnreadable(let kept, let dropped, _):
+            return Self.damagedMessage(kept: kept, dropped: dropped)
         case .unreachable:
             return String(localized: "Could not reach the device. Make sure it is on and try again.")
         }
@@ -63,6 +70,10 @@ private actor PresetCheckCache {
 
     func store(_ result: PackSetupResult, for address: String, modified: Int64) {
         results[address] = (modified, result)
+    }
+
+    func forget(_ address: String) {
+        results[address] = nil
     }
 }
 
@@ -112,7 +123,13 @@ struct PresetPackInstaller {
     private func install(_ packs: [PresetPack]) async throws -> PackSetupResult {
         let effects = try JSONSerialization.jsonObject(with: try await get("/json/eff")) as? [String] ?? []
         guard !effects.isEmpty else { return .unreachable }
-        guard let presets = try await readPresets() else { return .presetsUnreadable }
+        let text = try await presetsData()
+        guard let presets = Self.parse(text) else {
+            let repair = PresetsFileRepair.repair(text)
+            return .presetsUnreadable(
+                kept: repair.kept, dropped: repair.dropped, problem: PresetsFileRepair.problem(text) ?? ""
+            )
+        }
         let plans = PresetPackPlanner.planAll(packs, presets: presets, effects: effects)
         if plans.allSatisfy({ $0.plan.playlist == .skip }) { return .nothingAvailable }
         guard try await save(plans) else { return .unreachable }
@@ -198,13 +215,61 @@ struct PresetPackInstaller {
     /// The device's presets, or nil if presets.json exists but cannot be parsed (an empty or cut-off file
     /// included). A device that never had a preset has no presets.json, which counts as empty.
     func readPresets() async throws -> [String: Any]? {
+        Self.parse(try await presetsData())
+    }
+
+    private static func parse(_ data: Data) -> [String: Any]? {
+        (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+
+    /// presets.json as it is on the device; `{}` when it has none yet.
+    private func presetsData() async throws -> Data {
         let (data, response) = try await URLSession.shared.data(
             for: URLRequest(url: try url("/presets.json"), timeoutInterval: 10)
         )
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if status == 404 { return [:] }
+        if status == 404 { return Data("{}".utf8) }
         guard (200..<300).contains(status) else { throw URLError(.badServerResponse) }
-        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        return data
+    }
+
+    enum RepairResult {
+        case repaired
+        /// The file reads fine; nothing was uploaded.
+        case notNeeded
+        /// The device has a settings PIN that is not unlocked.
+        case locked
+        case failed
+    }
+
+    /// Replaces a damaged presets.json with the entries that are still intact (`PresetsFileRepair`),
+    /// uploading it the way WLED's own backup restore does. Nothing is changed if the file reads fine.
+    func repairPresets() async -> RepairResult {
+        do {
+            let text = try await presetsData()
+            if Self.parse(text) != nil { return .notNeeded }
+            let repaired = try PresetsFileRepair.repair(text).json()
+            let boundary = "SinagBoundary\(UUID().uuidString)"
+            var body = Data()
+            body.append(Data("--\(boundary)\r\n".utf8))
+            body.append(Data("Content-Disposition: form-data; name=\"data\"; filename=\"/presets.json\"\r\n".utf8))
+            body.append(Data("Content-Type: application/json\r\n\r\n".utf8))
+            body.append(repaired)
+            body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+            var request = URLRequest(url: try url("/upload"), timeoutInterval: 20)
+            request.httpMethod = "POST"
+            request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+            request.httpBody = body
+            let (_, response) = try await URLSession.shared.data(for: request)
+            await PresetCheckCache.shared.forget(address)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 401 { return .locked }
+            guard (200..<300).contains(status) else { return .failed }
+            try await Task.sleep(for: Self.playlistGap)
+            return .repaired
+        } catch {
+            return .failed
+        }
     }
 
     private func url(_ path: String) throws -> URL {
