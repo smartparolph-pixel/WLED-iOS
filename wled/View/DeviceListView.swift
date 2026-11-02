@@ -17,6 +17,11 @@ struct DeviceListView: View {
 
     @AppStorage("lastSelectedDeviceMac") private var lastSelectedDeviceMac: String = ""
 
+    /// The devices shown in the list, for the bottom shortcut bar.
+    private var shortcutDevices: [DeviceWithState] {
+        viewModel.onlineDevices + (viewModel.showOfflineDevices ? viewModel.offlineDevices : [])
+    }
+
     private var hasHiddenDevices: Bool {
         viewModel.allDevicesWithState.contains { $0.device.isHidden }
     }
@@ -40,6 +45,9 @@ struct DeviceListView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             list
+                .safeAreaInset(edge: .bottom) {
+                    DeviceShortcutBar(devices: shortcutDevices)
+                }
                 .toolbar { toolbar }
                 .sheet(isPresented: $addDeviceButtonActive) {
                     DeviceAddView()
