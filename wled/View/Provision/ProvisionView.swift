@@ -102,12 +102,7 @@ struct ProvisionView: View {
         .frame(maxWidth: .infinity)
     }
 
-    /// e.g. "✨ Twinkle Tonight"
-    private var packNames: String {
-        PresetPacks.all.map(\.playlist.name).joined(separator: ", ")
-    }
-
-    private func success(_ name: String, packResults: [PackInstallResult]?) -> some View {
+    private func success(_ name: String, packResults: [PackOutcome]?) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.seal")
                 .font(.system(size: 50))
@@ -115,14 +110,14 @@ struct ProvisionView: View {
                 .padding()
             Text("\(name) was added")
             if let packResults {
-                ForEach(Array(packResults.enumerated()), id: \.offset) { _, result in
-                    Text(result.message)
+                if !packResults.isEmpty {
+                    Text(PackOutcome.summary(packResults))
                         .multilineTextAlignment(.center)
                 }
             } else {
                 HStack(spacing: 8) {
                     ProgressView()
-                    Text("Adding \(packNames)…")
+                    Text("Adding all playlists…")
                 }
             }
             Text("Tip: protect your device by setting a settings PIN and enabling the OTA lock under Config → Security & Updates.")

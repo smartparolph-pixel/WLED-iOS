@@ -4,14 +4,26 @@ import Testing
 
 struct PresetPacksTests {
 
-    /// Effect names as WLED 0.15.3 lists them: index = effect id.
+    /// Every effect the packs use, with its id in WLED 0.15.3 (FX.h). All are 1D effects that need no
+    /// microphone, so they animate on a single LED strip.
+    private static let wled0153: [String: Int] = [
+        "Twinklefox": 80, "Fairy": 49, "Fairytwinkle": 51, "Glitter": 87, "Sparkle": 20,
+        "Fireworks 1D": 90, "Fireworks Starburst": 89, "Fireworks": 42, "Popcorn": 95, "Sparkle+": 22,
+        "Pacifica": 101, "Lake": 75, "Noise Pal": 107, "Flow": 110, "Aurora": 38,
+        "Rainbow": 9, "Colorwaves": 67, "Pride 2015": 63, "Theater Rainbow": 14, "Chase Rainbow": 30,
+        "Phased Noise": 109, "Twinkleup": 106, "Perlin Move": 147, "Plasma": 97,
+        "Candle": 88, "Candle Multi": 102, "Fire 2012": 66, "Fire Flicker": 45,
+        "Strobe Rainbow": 24, "Bpm": 68, "Ripple Rainbow": 99, "Chase Flash Rnd": 32, "Dynamic": 7,
+        "Meteor": 76, "Lighthouse": 41, "Sinelon Rainbow": 94, "Multi Comet": 59, "Juggle": 64,
+        "Sunrise": 104, "Blends": 115, "Breathe": 2, "Fade": 12, "Heartbeat": 100,
+        "Halloween Eyes": 82, "Lightning": 57, "Strobe Mega": 25, "Washing Machine": 113,
+        "Dancing Shadows": 112
+    ]
+
+    /// `/json/eff` as WLED 0.15.3 returns it: index = effect id.
     private let effects: [String] = {
-        var names = (0..<120).map { "Effect \($0)" }
-        names[20] = "Sparkle"
-        names[49] = "Fairy"
-        names[51] = "Fairytwinkle"
-        names[80] = "Twinklefox"
-        names[87] = "Glitter"
+        var names = (0..<190).map { "Effect \($0)" }
+        for (name, id) in PresetPacksTests.wled0153 { names[id] = name }
         return names
     }()
 
@@ -106,5 +118,48 @@ struct PresetPacksTests {
             }
             #expect((pack.playlist.quickLoad ?? "").count <= 2)
         }
+    }
+
+    @Test func everyPackEffectIsAWled0153StripEffect() {
+        for preset in PresetPacks.all.flatMap(\.presets) {
+            #expect(Self.wled0153[preset.effect] != nil, "\(preset.effect)")
+            #expect(preset.name == preset.effect)
+        }
+    }
+
+    @Test func tenPlaylistsEachStartingWithItsIcon() throws {
+        #expect(PresetPacks.all.count == 10)
+        #expect(Set(PresetPacks.all.map(\.playlist.name)).count == 10)
+        for pack in PresetPacks.all {
+            let icon = try #require(pack.playlist.quickLoad)
+            #expect(pack.playlist.name.hasPrefix("\(icon) "), "\(pack.playlist.name)")
+        }
+        #expect(PresetPacks.playsAfterSetup.playlist.name == "✨ Twinkle Tonight")
+    }
+
+    @Test func slowPlaylistsPlayLonger() {
+        #expect(PresetPacks.twinkleTonight.playlist.secondsPerPreset == 60)
+        for pack in [PresetPacks.chillMode, PresetPacks.riseAndShine] {
+            #expect(pack.playlist.secondsPerPreset == 60)
+            #expect(pack.playlist.fadeSeconds == 3)
+        }
+        #expect(PresetPacks.skyFullOfSparks.playlist.secondsPerPreset == 20)
+        #expect(PresetPacks.skyFullOfSparks.playlist.fadeSeconds == 1)
+    }
+
+    @Test func effectSharedBetweenPlaylistsIsSavedOnce() throws {
+        // Chill Mode already added "Aurora" as preset 5; Northern Glow reuses it.
+        let plan = PresetPackPlanner.plan(PresetPacks.northernGlow, presets: try parse(#"{"5":{"n":"Aurora"}}"#), effects: effects)
+        #expect(plan.reused == [.reuse(name: "Aurora", id: 5)])
+        #expect(plan.created.count == 4)
+    }
+
+    @Test func summaryOfAddAll() {
+        let done = PackInstallResult.done(playlistName: "", created: [], unavailable: [], verified: true)
+        let outcomes = PresetPacks.all.map { PackOutcome(pack: $0, result: $0 == PresetPacks.flameOn ? .unreachable : done) }
+        let text = PackOutcome.summary(outcomes)
+        #expect(text.contains("9"))
+        #expect(text.contains("✨ Twinkle Tonight"))
+        #expect(text.contains("🔥 Flame On"))
     }
 }

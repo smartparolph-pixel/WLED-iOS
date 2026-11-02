@@ -27,18 +27,67 @@ struct PresetPack: Equatable {
 }
 
 enum PresetPacks {
-    static let twinkleTonight = PresetPack(
-        presets: [
-            EffectPreset(name: "Twinklefox", effect: "Twinklefox"),
-            EffectPreset(name: "Fairy", effect: "Fairy"),
-            EffectPreset(name: "Fairytwinkle", effect: "Fairytwinkle"),
-            EffectPreset(name: "Glitter", effect: "Glitter"),
-            EffectPreset(name: "Sparkle", effect: "Sparkle")
-        ],
-        playlist: PlaylistSpec(name: "✨ Twinkle Tonight", quickLoad: "✨", secondsPerPreset: 60, fadeSeconds: 1)
+    private static let defaultSeconds = 20
+    private static let defaultFade = 1
+    private static let slowSeconds = 60
+    private static let slowFade = 3
+
+    /// A pack whose presets are named after their effects, so an effect used by several playlists is saved
+    /// once. The playlist name starts with `icon`, which is also its quick-load button.
+    private static func pack(
+        _ icon: String,
+        _ name: String,
+        _ effects: [String],
+        seconds: Int = defaultSeconds,
+        fade: Int = defaultFade
+    ) -> PresetPack {
+        PresetPack(
+            presets: effects.map { EffectPreset(name: $0, effect: $0) },
+            playlist: PlaylistSpec(name: "\(icon) \(name)", quickLoad: icon, secondsPerPreset: seconds, fadeSeconds: fade)
+        )
+    }
+
+    // Effect names are WLED 0.15.3's; ids in PresetPacksTests.
+
+    static let twinkleTonight = pack(
+        "✨", "Twinkle Tonight", ["Twinklefox", "Fairy", "Fairytwinkle", "Glitter", "Sparkle"], seconds: slowSeconds
+    )
+    static let skyFullOfSparks = pack(
+        "🎆", "Sky Full of Sparks", ["Fireworks 1D", "Fireworks Starburst", "Fireworks", "Popcorn", "Sparkle+"]
+    )
+    static let chillMode = pack(
+        "🌊", "Chill Mode", ["Pacifica", "Lake", "Noise Pal", "Flow", "Aurora"], seconds: slowSeconds, fade: slowFade
+    )
+    static let rainbowRush = pack(
+        "🌈", "Rainbow Rush", ["Rainbow", "Colorwaves", "Pride 2015", "Theater Rainbow", "Chase Rainbow"]
+    )
+    static let northernGlow = pack(
+        "🌌", "Northern Glow", ["Aurora", "Phased Noise", "Twinkleup", "Perlin Move", "Plasma"]
+    )
+    static let flameOn = pack(
+        "🔥", "Flame On", ["Candle", "Candle Multi", "Fire 2012", "Fire Flicker"]
+    )
+    /// A party mix that needs no microphone (WLED's sound-reactive effects stay dark without one).
+    static let beatDrop = pack(
+        "🎵", "Beat Drop", ["Strobe Rainbow", "Bpm", "Ripple Rainbow", "Chase Flash Rnd", "Dynamic"]
+    )
+    static let cometChasers = pack(
+        "☄️", "Comet Chasers", ["Meteor", "Lighthouse", "Sinelon Rainbow", "Multi Comet", "Juggle"]
+    )
+    static let riseAndShine = pack(
+        "🌅", "Rise & Shine", ["Sunrise", "Blends", "Breathe", "Fade", "Heartbeat"], seconds: slowSeconds, fade: slowFade
+    )
+    static let spookySwitch = pack(
+        "🎃", "Spooky Switch", ["Halloween Eyes", "Lightning", "Strobe Mega", "Washing Machine", "Dancing Shadows"]
     )
 
-    static let all = [twinkleTonight]
+    static let all = [
+        twinkleTonight, skyFullOfSparks, chillMode, rainbowRush, northernGlow,
+        flameOn, beatDrop, cometChasers, riseAndShine, spookySwitch
+    ]
+
+    /// The pack left playing after Set Up New Device adds all of them.
+    static let playsAfterSetup = twinkleTonight
 }
 
 /// What to do for one preset of a pack.

@@ -19,7 +19,7 @@ final class ProvisionViewModel: ObservableObject {
         case form(ssidError: String = "", errorMessage: String = "")
         case working(ProvisioningProgress)
         /// `packResults` is nil while the preset packs are still being added to the new device.
-        case success(deviceName: String, packResults: [PackInstallResult]?)
+        case success(deviceName: String, packResults: [PackOutcome]?)
 
         var isForm: Bool {
             if case .form = self { return true }
@@ -73,14 +73,10 @@ final class ProvisionViewModel: ObservableObject {
         }
     }
 
-    /// Preloads the preset packs on the new device; its last playlist is left playing.
-    private func addPresetPacks(address: String?) async -> [PackInstallResult] {
+    /// Preloads every preset pack on the new device, leaving `PresetPacks.playsAfterSetup` playing.
+    private func addPresetPacks(address: String?) async -> [PackOutcome] {
         guard let address else { return [] }
-        var results: [PackInstallResult] = []
-        for pack in PresetPacks.all {
-            results.append(await PresetPackInstaller(address: address).install(pack))
-        }
-        return results
+        return await PresetPackInstaller(address: address).installAll()
     }
 
     func cancel() {

@@ -5,7 +5,11 @@ struct PresetPacksView: View {
     private let address: String?
     /// Playlist name of the pack being added, if any.
     @State private var working: String?
-    @State private var result: PackInstallResult?
+    @State private var addingAll = false
+    /// What the last tap did.
+    @State private var status: String?
+
+    private var busy: Bool { working != nil || addingAll || address == nil }
 
     init(device: Device) {
         address = device.address
@@ -13,6 +17,27 @@ struct PresetPacksView: View {
 
     var body: some View {
         List {
+            Section {
+                Button {
+                    addAll()
+                } label: {
+                    HStack {
+                        Text("Add all playlists").bold()
+                        Spacer()
+                        if addingAll {
+                            ProgressView()
+                        }
+                    }
+                }
+                .disabled(busy)
+            } header: {
+                Text("Adds ready-made presets and a playlist to this device and starts the playlist. Presets already on the device are kept, so nothing is added twice.")
+                    .textCase(nil)
+            } footer: {
+                if let status {
+                    Text(status)
+                }
+            }
             Section {
                 ForEach(PresetPacks.all, id: \.playlist.name) { pack in
                     Button {
@@ -26,14 +51,7 @@ struct PresetPacksView: View {
                             }
                         }
                     }
-                    .disabled(working != nil || address == nil)
-                }
-            } header: {
-                Text("Adds ready-made presets and a playlist to this device and starts the playlist. Presets already on the device are kept, so nothing is added twice.")
-                    .textCase(nil)
-            } footer: {
-                if let result {
-                    Text(result.message)
+                    .disabled(busy)
                 }
             }
         }
@@ -44,10 +62,21 @@ struct PresetPacksView: View {
     private func add(_ pack: PresetPack) {
         guard let address else { return }
         working = pack.playlist.name
-        result = nil
+        status = nil
         Task {
-            result = await PresetPackInstaller(address: address).install(pack)
+            status = await PresetPackInstaller(address: address).install(pack).message
             working = nil
+        }
+    }
+
+    /// Adds every pack, ending on `PresetPacks.playsAfterSetup` so that one is left playing.
+    private func addAll() {
+        guard let address else { return }
+        addingAll = true
+        status = nil
+        Task {
+            status = PackOutcome.summary(await PresetPackInstaller(address: address).installAll())
+            addingAll = false
         }
     }
 }

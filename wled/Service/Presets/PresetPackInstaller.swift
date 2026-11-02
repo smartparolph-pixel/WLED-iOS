@@ -32,6 +32,42 @@ enum PackInstallResult: Equatable {
     }
 }
 
+/// One pack's result from `installAll`.
+struct PackOutcome: Equatable {
+    let pack: PresetPack
+    let result: PackInstallResult
+
+    /// What "Add all" did, e.g. "Playlists added: 10. ✨ Twinkle Tonight is playing now.", followed by
+    /// anything that could not be added.
+    static func summary(_ outcomes: [PackOutcome]) -> String {
+        var done: [(pack: PresetPack, unavailable: [String], verified: Bool)] = []
+        for outcome in outcomes {
+            if case .done(_, _, let unavailable, let verified) = outcome.result {
+                done.append((outcome.pack, unavailable, verified))
+            }
+        }
+        guard !done.isEmpty else { return (outcomes.first?.result ?? .unreachable).message }
+        let playing = (done.first { $0.pack == PresetPacks.playsAfterSetup } ?? done[done.count - 1]).pack
+        var parts = [String(localized: "Playlists added: \(done.count). \(playing.playlist.name) is playing now.")]
+        var unavailable: [String] = []
+        for name in done.flatMap(\.unavailable) where !unavailable.contains(name) { unavailable.append(name) }
+        if !unavailable.isEmpty {
+            parts.append(String(localized: "Not available on this device: \(unavailable.joined(separator: ", "))."))
+        }
+        let notAdded = outcomes
+            .filter { if case .done = $0.result { return false } else { return true } }
+            .map(\.pack.playlist.name)
+            .joined(separator: ", ")
+        if !notAdded.isEmpty {
+            parts.append(String(localized: "Could not add: \(notAdded)."))
+        }
+        if done.contains(where: { !$0.verified }) {
+            parts.append(String(localized: "The device did not confirm every preset; check its Presets list."))
+        }
+        return parts.joined(separator: " ")
+    }
+}
+
 /// Adds a `PresetPack` to a device and starts its playlist. Safe to run again: presets and playlists
 /// already on the device (matched by name) are reused, so nothing is duplicated.
 struct PresetPackInstaller {
@@ -39,6 +75,21 @@ struct PresetPackInstaller {
     private static let saveGap: Duration = .milliseconds(500)
 
     let address: String
+
+    /// Adds every pack, `finish` last so its playlist is the one left playing. Results are in the order of
+    /// `packs`. Stops early if the device cannot be reached.
+    func installAll(
+        _ packs: [PresetPack] = PresetPacks.all,
+        finish: PresetPack = PresetPacks.playsAfterSetup
+    ) async -> [PackOutcome] {
+        var results: [String: PackInstallResult] = [:]
+        for pack in packs.filter({ $0 != finish }) + packs.filter({ $0 == finish }) {
+            let result = await install(pack)
+            results[pack.playlist.name] = result
+            if result == .unreachable { break }
+        }
+        return packs.map { PackOutcome(pack: $0, result: results[$0.playlist.name] ?? .unreachable) }
+    }
 
     func install(_ pack: PresetPack) async -> PackInstallResult {
         do {
