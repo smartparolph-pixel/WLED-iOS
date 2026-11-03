@@ -12,14 +12,14 @@ struct EmptyDeviceListView: View {
     @Binding var showHiddenDevices: Bool
     var hasHiddenDevices: Bool
 
-    private let imageSize: CGFloat = 150
+    private let imageSize: CGFloat = 96
 
     var body: some View {
         VStack {
             Spacer()
 
             VStack {
-                Image(.akemi018Teeth)
+                Image(.sinagAppIcon)
                     .resizable()
                     .scaledToFit()
                     .frame(width: imageSize)

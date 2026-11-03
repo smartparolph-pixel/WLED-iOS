@@ -11,10 +11,16 @@ struct DeviceListView: View {
     @State private var selection: DeviceWithState?
 
     @State private var addDeviceButtonActive: Bool = false
+    @State private var provisionDeviceActive: Bool = false
     @State private var showSettingsSheet: Bool = false
     @State private var columnVisibility = NavigationSplitViewVisibility.doubleColumn
 
     @AppStorage("lastSelectedDeviceMac") private var lastSelectedDeviceMac: String = ""
+
+    /// The devices shown in the list, for the bottom shortcut bar.
+    private var shortcutDevices: [DeviceWithState] {
+        viewModel.onlineDevices + (viewModel.showOfflineDevices ? viewModel.offlineDevices : [])
+    }
 
     private var hasHiddenDevices: Bool {
         viewModel.allDevicesWithState.contains { $0.device.isHidden }
@@ -39,9 +45,15 @@ struct DeviceListView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             list
+                .safeAreaInset(edge: .bottom) {
+                    DeviceShortcutBar(devices: shortcutDevices)
+                }
                 .toolbar { toolbar }
                 .sheet(isPresented: $addDeviceButtonActive) {
                     DeviceAddView()
+                }
+                .sheet(isPresented: $provisionDeviceActive) {
+                    ProvisionView()
                 }
                 .sheet(isPresented: $showSettingsSheet) {
                     Settings(
@@ -189,16 +201,26 @@ struct DeviceListView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .principal) {
-            Image(.wledLogoAkemi)
+            // Color lockup in light mode, reversed lockup in dark mode (see the asset's appearances).
+            Image(.sinagLockup)
                 .resizable()
                 .scaledToFit()
-                .padding(3)
                 .frame(height: 50)
+                .accessibilityLabel("Sinag")
         }
         ToolbarItemGroup(placement: .primaryAction) {
             // 1. Add Button (Direct Access)
-            Button {
-                addDeviceButtonActive.toggle()
+            Menu {
+                Button {
+                    provisionDeviceActive.toggle()
+                } label: {
+                    Label("Set Up New Device", systemImage: "wifi.router")
+                }
+                Button {
+                    addDeviceButtonActive.toggle()
+                } label: {
+                    Label("Add by Address", systemImage: "network")
+                }
             } label: {
                 Label("Add Device", systemImage: "plus")
             }
