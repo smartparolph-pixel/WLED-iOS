@@ -151,7 +151,7 @@ struct EffectControls: Equatable {
             }
         }
         self.init(
-            speedLabel: Self.label(sliders.count > 0 ? sliders[0] : nil),
+            speedLabel: Self.label(sliders.first),
             intensityLabel: Self.label(sliders.count > 1 ? sliders[1] : nil),
             usesPalette: !palette.isEmpty && Int(palette) == nil,
             defaults: EffectSettings(
