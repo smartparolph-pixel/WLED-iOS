@@ -34,7 +34,7 @@ enum PresetsFileRepair {
 
     /// A JSON number value written with a zero fraction, e.g. `:80.0` or `[1.0,`. WLED never writes these,
     /// and ignores a decimal effect, speed or palette; an earlier Android repair wrote them.
-    private static let decimalWhole = try? NSRegularExpression(pattern: #"[:\[,]\s*-?\d+\.0+\s*(?=[,\]}])"#)
+    private static let decimalWholePattern = #"[:\[,]\s*-?\d+\.0+\s*(?=[,\]}])"#
 
     /// Why the file cannot be used as is, or nil if it parses and the firmware can read its numbers.
     static func problem(_ data: Data) -> String? {
@@ -44,6 +44,7 @@ enum PresetsFileRepair {
             }
             let text = String(decoding: data, as: UTF8.self)
             let range = NSRange(text.startIndex..., in: text)
+            let decimalWhole = try? NSRegularExpression(pattern: decimalWholePattern)
             if decimalWhole?.firstMatch(in: text, range: range) != nil {
                 return "Numbers saved as decimals (e.g. 80.0)"
             }
