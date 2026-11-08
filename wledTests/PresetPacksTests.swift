@@ -341,4 +341,15 @@ struct PresetPacksTests {
         let result = PresetsFileRepair.repair(Data(#"{"0":{},"7":{"n":"My {fun} \"preset\"","seg":{"fx":9}}}"#.utf8))
         #expect((result.presets["7"] as? [String: Any])?["n"] as? String == "My {fun} \"preset\"")
     }
+
+    @Test func decimalNumbersAreFoundAndWrittenBackWhole() throws {
+        let decimals = Data(#"{"0":{},"1":{"n":"Twinklefox","seg":{"fx":80.0,"fxdef":true,"sx":1.0}},"6":{"n":"Mine","playlist":{"ps":[1.0],"dur":[600.0]}}}"#.utf8)
+        #expect(PresetsFileRepair.problem(decimals) != nil)
+        let json = try PresetsFileRepair.repair(decimals).json()
+        #expect(PresetsFileRepair.problem(json) == nil)
+        let text = String(decoding: json, as: UTF8.self)
+        #expect(text.contains(#""fx":80,"#))
+        #expect(text.contains(#""ps":[1]"#))
+        #expect(PresetsFileRepair.problem(Data(#"{"0":{},"2":{"n":"Mode 1.0","seg":{"fx":9}}}"#.utf8)) == nil)
+    }
 }

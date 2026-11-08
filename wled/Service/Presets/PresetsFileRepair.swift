@@ -20,9 +20,9 @@ enum PresetsFileRepair {
         /// Presets and playlists kept, not counting the empty entry "0".
         var kept: Int { ids.filter { $0 != "0" }.count }
 
-        /// The repaired file, always valid JSON.
+        /// The repaired file, always valid JSON with whole numbers.
         func json() throws -> Data {
-            try JSONSerialization.data(withJSONObject: presets, options: [.sortedKeys])
+            try JSONSerialization.data(withJSONObject: PresetsFileRepair.wholeNumbers(presets), options: [.sortedKeys])
         }
     }
 
@@ -32,11 +32,20 @@ enum PresetsFileRepair {
     private static let close = UInt8(ascii: "}")
     private static let colon = UInt8(ascii: ":")
 
-    /// Why the file cannot be read as is, or nil if it parses.
+    /// A JSON number value written with a zero fraction, e.g. `:80.0` or `[1.0,`. WLED never writes these,
+    /// and ignores a decimal effect, speed or palette; an earlier Android repair wrote them.
+    private static let decimalWhole = try? NSRegularExpression(pattern: #"[:\[,]\s*-?\d+\.0+\s*(?=[,\]}])"#)
+
+    /// Why the file cannot be used as is, or nil if it parses and the firmware can read its numbers.
     static func problem(_ data: Data) -> String? {
         do {
             guard try JSONSerialization.jsonObject(with: data) is [String: Any] else {
                 return "Not a JSON object"
+            }
+            let text = String(decoding: data, as: UTF8.self)
+            let range = NSRange(text.startIndex..., in: text)
+            if decimalWhole?.firstMatch(in: text, range: range) != nil {
+                return "Numbers saved as decimals (e.g. 80.0)"
             }
             return nil
         } catch {
@@ -125,5 +134,17 @@ enum PresetsFileRepair {
             }
         }
         return nil
+    }
+
+    /// Copies parsed JSON, turning whole-valued decimals back into integers.
+    static func wholeNumbers(_ value: Any) -> Any {
+        if let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() {
+            let double = number.doubleValue
+            if double.rounded() == double, abs(double) < 1e15 { return Int(double) }
+            return number
+        }
+        if let object = value as? [String: Any] { return object.mapValues { wholeNumbers($0) } }
+        if let list = value as? [Any] { return list.map { wholeNumbers($0) } }
+        return value
     }
 }

@@ -124,7 +124,7 @@ struct PresetPackInstaller {
         let effects = try JSONSerialization.jsonObject(with: try await get("/json/eff")) as? [String] ?? []
         guard !effects.isEmpty else { return .unreachable }
         let text = try await presetsData()
-        guard let presets = Self.parse(text) else {
+        guard let presets = Self.parse(text), PresetsFileRepair.problem(text) == nil else {
             let repair = PresetsFileRepair.repair(text)
             return .presetsUnreadable(
                 kept: repair.kept, dropped: repair.dropped, problem: PresetsFileRepair.problem(text) ?? ""
@@ -247,7 +247,7 @@ struct PresetPackInstaller {
     func repairPresets() async -> RepairResult {
         do {
             let text = try await presetsData()
-            if Self.parse(text) != nil { return .notNeeded }
+            if PresetsFileRepair.problem(text) == nil { return .notNeeded }
             let repaired = try PresetsFileRepair.repair(text).json()
             let boundary = "SinagBoundary\(UUID().uuidString)"
             var body = Data()
