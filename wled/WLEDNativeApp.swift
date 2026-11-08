@@ -5,6 +5,7 @@ struct WLEDNativeApp: App {
     static let dateLastUpdateKey = "lastUpdateReleasesDate"
     
     let persistenceController = PersistenceController.shared
+    @ObservedObject private var appLock = AppLock.shared
     
     var body: some Scene {
         WindowGroup {
@@ -13,6 +14,7 @@ struct WLEDNativeApp: App {
                 .onAppear {
                     refreshVersionsSync()
                 }
+                .appLock(appLock)
         }
     }
     
