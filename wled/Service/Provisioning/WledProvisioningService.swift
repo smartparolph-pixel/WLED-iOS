@@ -7,7 +7,8 @@ import OSLog
 ///
 ///  1. Join the device's setup AP (system-confirmed via `NEHotspotConfiguration`).
 ///  2. Verify it is WLED and read its MAC (`GET /json/info`).
-///  3. Push home WiFi credentials (`POST /json/cfg`) and reboot it (`POST /json/state {"rb":true}`).
+///  3. Push home WiFi credentials and the brightness limiter for the lanterns' power supply
+///     (`POST /json/cfg`), then reboot it (`POST /json/state {"rb":true}`).
 ///  4. Drop the AP configuration so the phone falls back to its normal WiFi.
 ///  5. Wait for the device to re-appear over Bonjour, matching on MAC, and add it to the app.
 ///
@@ -40,7 +41,7 @@ final class WledProvisioningService {
             info = try await fetchInfo(session)
 
             onProgress(.sendingCredentials)
-            try await postCredentials(session, request)
+            try await postCredentials(session, request, led: await powerLimit(session))
 
             onProgress(.rebootingDevice)
             try await Task.sleep(for: ProvisioningDefaults.configWriteGrace)
@@ -137,14 +138,24 @@ final class WledProvisioningService {
         throw ProvisioningError.notAWledDevice
     }
 
-    private func postCredentials(_ session: URLSession, _ request: ProvisioningRequest) async throws {
+    /// The brightness limiter for the lanterns' power supply (`ProvisioningDefaults.powerLimitMilliamps`),
+    /// sent with the WiFi credentials. Nil if the device's LED setup could not be read: setup goes on without it.
+    private func powerLimit(_ session: URLSession) async -> [String: Any]? {
+        guard let url = try? apURL("/json/cfg"),
+              let response = try? await session.data(from: url),
+              let cfg = (try? JSONSerialization.jsonObject(with: response.0)) as? [String: Any] else { return nil }
+        return ProvisioningPayloads.powerLimitConfig(cfg)
+    }
+
+    private func postCredentials(_ session: URLSession, _ request: ProvisioningRequest, led: [String: Any]?) async throws {
         var urlRequest = URLRequest(url: try apURL("/json/cfg"))
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.httpBody = try ProvisioningPayloads.wifiConfigJSON(
             ssid: request.homeSsid,
             password: request.homePassword,
-            timezone: request.timezone
+            timezone: request.timezone,
+            led: led
         )
         let (_, response) = try await session.data(for: urlRequest)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
