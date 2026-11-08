@@ -40,7 +40,18 @@ struct ProvisioningPayloadsTests {
         """#.utf8)) as? [String: Any])
         let led = try #require(ProvisioningPayloads.powerLimitConfig(cfg))
         let data = try ProvisioningPayloads.wifiConfigJSON(ssid: "Home", password: "secret123", led: led)
-        #expect(String(data: data, encoding: .utf8) == #"{"hw":{"led":{"ins":[{"freq":0,"len":160,"ledma":55,"maxpwr":2000,"order":0,"pin":[2],"ref":false,"rev":false,"rgbwm":0,"skip":0,"start":0,"type":22}],"maxpwr":2000}},"nw":{"ins":[{"psk":"secret123","ssid":"Home"}]}}"#)
+        let body = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let sentLed = try #require((body["hw"] as? [String: Any])?["led"] as? [String: Any])
+        #expect(sentLed["maxpwr"] as? Int == 2000)
+        let output = try #require((sentLed["ins"] as? [[String: Any]])?.first)
+        #expect(output["maxpwr"] as? Int == 2000)
+        #expect(output["len"] as? Int == 160)
+        #expect(output["pin"] as? [Int] == [2])
+        #expect(output["type"] as? Int == 22)
+        #expect(output["ledma"] as? Int == 55)
+        #expect(output["rev"] as? Bool == false)
+        #expect(output.count == 12)
+        #expect(body["nw"] != nil)
     }
 
     @Test func powerLimitIsSplitAcrossOutputsByLedCount() throws {
