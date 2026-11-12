@@ -80,5 +80,10 @@ struct ProvisioningPayloadsTests {
         let url = try #require(URL(string: ParolShareLink.url(address: "192.168.68.60")))
         #expect(ParolShareLink.address(from: url) == "192.168.68.60")
         #expect(ParolShareLink.address(from: try #require(URL(string: "https://example.com"))) == nil)
+        let web = try #require(URL(string: ParolShareLink.webLink(address: "192.168.68.60")))
+        #expect(web.absoluteString == "https://sinagtechlabs.com/smartparol.html?a=192.168.68.60")
+        #expect(ParolShareLink.address(from: web) == "192.168.68.60")
+        let other = try #require(URL(string: "https://sinagtechlabs.com/other.html?a=192.168.68.60"))
+        #expect(ParolShareLink.address(from: other) == nil)
     }
 }
