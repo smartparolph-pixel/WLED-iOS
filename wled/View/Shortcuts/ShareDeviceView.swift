@@ -64,9 +64,9 @@ struct ShareDeviceView: View {
 enum ParolShareLink {
     static let scheme = "wled"
     private static let webHosts: Set<String> = ["sinagtechlabs.com", "www.sinagtechlabs.com"]
-    private static let webPath = "/smartparol.html"
+    private static let webPath = "/sinaginstall.html"
     /// The Sinag download page, also shown to people without the app who open a share link.
-    static let downloadPage = "https://sinagtechlabs.com/smartparol.html"
+    static let downloadPage = "https://sinagtechlabs.com/sinaginstall.html"
     /// The QR code uses the web link once the page and apple-app-site-association are live (see the
     /// Android repository's docs/website); until then it uses the wled:// link, which needs Sinag installed.
     static let qrUsesWebLink = false
