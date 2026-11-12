@@ -48,6 +48,14 @@ struct ProvisionView: View {
         if !errorMessage.isEmpty {
             Text(errorMessage).foregroundStyle(.red).font(.callout)
         }
+        VStack(alignment: .leading, spacing: 4) {
+            TextField("Lantern name", text: $viewModel.deviceName)
+                .textInputAutocapitalization(.words)
+                .textFieldStyle(.roundedBorder)
+            Text("Shown on every phone that uses this lantern.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
         TextField("Home WiFi name", text: $viewModel.homeSsid)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()

@@ -4,6 +4,8 @@ import CoreData
 @MainActor
 final class ProvisionViewModel: ObservableObject {
 
+    /// The lantern's name, saved on it so every phone shows the same name.
+    @Published var deviceName: String = ProvisioningDefaults.deviceName
     @Published var homeSsid: String = ""
     @Published var homePassword: String = ""
     /// Start of the device's setup network name. Factory-flashed products may use their own.
@@ -28,6 +30,15 @@ final class ProvisionViewModel: ObservableObject {
     }
 
     func start() {
+        let name = deviceName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            step = .form(errorMessage: String(localized: "Enter a name for the lantern."))
+            return
+        }
+        guard name.utf8.count <= ProvisioningDefaults.deviceNameMaxBytes else {
+            step = .form(errorMessage: String(localized: "The lantern name is too long."))
+            return
+        }
         let ssid = homeSsid.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !ssid.isEmpty else {
             step = .form(ssidError: String(localized: "Enter your WiFi name"))
@@ -49,7 +60,8 @@ final class ProvisionViewModel: ObservableObject {
             homePassword: homePassword,
             apSsidPrefix: prefix,
             apPassword: apPassword.isEmpty ? nil : apPassword,
-            timezone: TimezoneCatalog.setting(for: TimeZone.current.identifier)
+            timezone: TimezoneCatalog.setting(for: TimeZone.current.identifier),
+            deviceName: name
         )
 
         task = Task { [weak self] in

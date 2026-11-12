@@ -66,4 +66,19 @@ struct ProvisioningPayloadsTests {
         #expect(ProvisioningPayloads.powerLimitConfig(["hw": ["led": [String: Any]()]]) == nil)
         #expect(ProvisioningPayloads.powerLimitConfig([:]) == nil)
     }
+
+    @Test func deviceNameIsSavedOnTheDevice() throws {
+        let data = try ProvisioningPayloads.wifiConfigJSON(ssid: "Home", password: "secret123", name: "Living Room Parol")
+        let body = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect((body["id"] as? [String: Any])?["name"] as? String == "Living Room Parol")
+        let blank = try ProvisioningPayloads.wifiConfigJSON(ssid: "Home", password: "secret123", name: " ")
+        let blankBody = try #require(try JSONSerialization.jsonObject(with: blank) as? [String: Any])
+        #expect(blankBody["id"] == nil)
+    }
+
+    @Test func shareLinkRoundTrips() throws {
+        let url = try #require(URL(string: ParolShareLink.url(address: "192.168.68.60")))
+        #expect(ParolShareLink.address(from: url) == "192.168.68.60")
+        #expect(ParolShareLink.address(from: try #require(URL(string: "https://example.com"))) == nil)
+    }
 }

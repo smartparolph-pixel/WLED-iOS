@@ -22,6 +22,10 @@ enum ProvisioningDefaults {
     /// Brightness limiter for the lanterns' 5 V 3 A (15 W) power supply, set during setup: 2000 mA leaves
     /// headroom below the supply's rating. WLED dims all LEDs to stay under it.
     static let powerLimitMilliamps = 2000
+    /// Suggested name for a new lantern; the user can change it before setup starts.
+    static let deviceName = "Living Room Parol"
+    /// WLED keeps 32 bytes of the device name (`id.name`).
+    static let deviceNameMaxBytes = 32
 }
 
 struct ProvisioningRequest {
@@ -34,6 +38,8 @@ struct ProvisioningRequest {
     var apPassword: String? = ProvisioningDefaults.apPassword
     /// Sent along with the credentials so the device shows local time right away. Nil leaves it unchanged.
     var timezone: WledTimezoneSetting?
+    /// Saved on the device (`id.name`), so every phone shows the same name. Nil leaves it unchanged.
+    var deviceName: String?
 }
 
 enum ProvisioningProgress: Equatable {
@@ -81,7 +87,8 @@ enum ProvisioningPayloads {
         ssid: String,
         password: String,
         timezone: WledTimezoneSetting? = nil,
-        led: [String: Any]? = nil
+        led: [String: Any]? = nil,
+        name: String? = nil
     ) throws -> Data {
         var payload: [String: Any] = [
             "nw": ["ins": [["ssid": ssid, "psk": password]]]
@@ -91,6 +98,9 @@ enum ProvisioningPayloads {
         }
         if let led {
             payload["hw"] = ["led": led]
+        }
+        if let name, !name.trimmingCharacters(in: .whitespaces).isEmpty {
+            payload["id"] = ["name": name]
         }
         return try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
     }

@@ -155,7 +155,8 @@ final class WledProvisioningService {
             ssid: request.homeSsid,
             password: request.homePassword,
             timezone: request.timezone,
-            led: led
+            led: led,
+            name: request.deviceName
         )
         let (_, response) = try await session.data(for: urlRequest)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {

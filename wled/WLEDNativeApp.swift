@@ -6,6 +6,8 @@ struct WLEDNativeApp: App {
     
     let persistenceController = PersistenceController.shared
     @ObservedObject private var appLock = AppLock.shared
+    /// Result of opening a "Share Parol" link, shown as an alert.
+    @State private var shareMessage: String?
     
     var body: some Scene {
         WindowGroup {
@@ -14,10 +16,32 @@ struct WLEDNativeApp: App {
                 .onAppear {
                     refreshVersionsSync()
                 }
+                .onOpenURL { url in
+                    guard let address = ParolShareLink.address(from: url) else { return }
+                    Task { await addSharedLantern(address: address) }
+                }
+                .alert(
+                    shareMessage ?? "",
+                    isPresented: Binding(get: { shareMessage != nil }, set: { if !$0 { shareMessage = nil } })
+                ) {
+                    Button("OK", role: .cancel) {}
+                }
                 .appLock(appLock)
         }
     }
     
+    /// A scanned "Share Parol" QR code: contact the lantern and add it to the list.
+    private func addSharedLantern(address: String) async {
+        do {
+            let id = try await DeviceFirstContactService().fetchAndUpsertDevice(rawAddress: address)
+            let device = persistenceController.container.viewContext.object(with: id) as? Device
+            let name = device?.displayName ?? address
+            shareMessage = String(localized: "\(name) was added.")
+        } catch {
+            shareMessage = String(localized: "Could not reach the lantern at \(address). Make sure this phone is on the same WiFi.")
+        }
+    }
+
     private func refreshVersionsSync() {
         Task {
             // Only update automatically from Github once per 24 hours to avoid rate limits

@@ -1,12 +1,13 @@
 import SwiftUI
 
-/// Bottom bar on the main page with shortcuts to Schedule, Presets & Playlists and Time Zone. With one
-/// device the feature opens for it straight away; with several, a list asks which device first.
+/// Bottom bar on the main page with shortcuts to Schedule, Presets & Playlists and Share Parol. With one
+/// device the feature opens for it straight away; with several, a list asks which device first. The time
+/// zone, set during setup, stays on the Edit Device screen.
 struct DeviceShortcutBar: View {
     let devices: [DeviceWithState]
 
     enum Shortcut: String, CaseIterable, Identifiable {
-        case schedule, presets, timeZone
+        case schedule, presets, share
 
         var id: Self { self }
 
@@ -14,7 +15,7 @@ struct DeviceShortcutBar: View {
             switch self {
             case .schedule: return "Schedule"
             case .presets: return "Presets & Playlists"
-            case .timeZone: return "Time Zone"
+            case .share: return "Share Parol"
             }
         }
 
@@ -22,7 +23,7 @@ struct DeviceShortcutBar: View {
             switch self {
             case .schedule: return "calendar"
             case .presets: return "sparkles"
-            case .timeZone: return "globe"
+            case .share: return "qrcode"
             }
         }
     }
@@ -91,7 +92,7 @@ struct DeviceShortcutBar: View {
         switch opened.shortcut {
         case .schedule: ScheduleListView(device: opened.device)
         case .presets: PresetPacksView(device: opened.device)
-        case .timeZone: TimezonePickerView(device: opened.device.device)
+        case .share: ShareDeviceView(device: opened.device)
         }
     }
 
