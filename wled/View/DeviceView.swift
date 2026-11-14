@@ -49,7 +49,7 @@ struct DeviceView: View {
         ToolbarItem(placement: .primaryAction) {
             if !device.isAPMode {
                 NavigationLink {
-                    ScheduleListView(device: device)
+                    SettingsGate { ScheduleListView(device: device) }
                 } label: {
                     // A larger icon with its name underneath, so schedules are easy to find.
                     VStack(spacing: 1) {
@@ -64,7 +64,7 @@ struct DeviceView: View {
         }
         ToolbarItem(placement: .primaryAction) {
             NavigationLink {
-                DeviceEditView(device: device)
+                SettingsGate { DeviceEditView(device: device) }
             } label: {
                 Label("Settings", systemImage: "gear")
                 // This badge only works on iOS 26+, but that's fine.

@@ -102,7 +102,7 @@ struct PresetPacksView: View {
         .safeAreaInset(edge: .bottom) {
             if let address, case .ready = setup {
                 NavigationLink {
-                    PresetEditorView(address: address)
+                    SettingsGate { PresetEditorView(address: address) }
                 } label: {
                     Label("Edit", systemImage: "pencil")
                         .frame(maxWidth: .infinity)

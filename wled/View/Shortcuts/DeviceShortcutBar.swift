@@ -90,7 +90,7 @@ struct DeviceShortcutBar: View {
     @ViewBuilder
     private func destination(_ opened: Opened) -> some View {
         switch opened.shortcut {
-        case .schedule: ScheduleListView(device: opened.device)
+        case .schedule: SettingsGate { ScheduleListView(device: opened.device) }
         case .presets: PresetPacksView(device: opened.device)
         case .share: ShareDeviceView(device: opened.device)
         }

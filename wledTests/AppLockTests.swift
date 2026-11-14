@@ -17,4 +17,11 @@ struct AppLockTests {
         #expect(!AppLockPolicy.shouldLockOnReturn(enabled: false, backgroundedAt: 0, now: 600, timeout: .immediately))
         #expect(!AppLockPolicy.shouldLockOnReturn(enabled: true, backgroundedAt: nil, now: 600, timeout: .immediately))
     }
+
+    @Test func settingsStayUnlockedForTheChosenTime() {
+        #expect(AppLockPolicy.stillUnlocked(unlockedAt: 0, now: 119, timeout: .twoMinutes))
+        #expect(!AppLockPolicy.stillUnlocked(unlockedAt: 0, now: 120, timeout: .twoMinutes))
+        #expect(!AppLockPolicy.stillUnlocked(unlockedAt: 0, now: 0, timeout: .immediately))
+        #expect(AppLockPolicy.stillUnlocked(unlockedAt: 0, now: 240, timeout: .fiveMinutes))
+    }
 }

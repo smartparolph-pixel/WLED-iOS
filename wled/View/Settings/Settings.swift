@@ -65,24 +65,26 @@ struct Settings: View {
         .presentationDragIndicator(.visible)
     }
 
-    /// On and off both need Face ID, Touch ID or the passcode, so nobody else can change it.
+    /// Every change needs Face ID, Touch ID or the passcode, so nobody else can change it.
     private var appLockSection: some View {
         let available = AppLock.isAvailable
         return Section {
-            Toggle(isOn: Binding(
-                get: { appLock.isEnabled },
-                set: { enable in
+            Picker("App Lock", selection: Binding(
+                get: { appLock.mode },
+                set: { mode in
                     Task {
                         if await appLock.authenticate(reason: String(localized: "Confirm it's you to change App Lock")) {
-                            appLock.isEnabled = enable
+                            appLock.mode = mode
                         }
                     }
                 }
             )) {
-                Label("Require Unlock to Open Sinag", systemImage: "lock")
+                Text("Off").tag(AppLockMode.off)
+                Text("Settings Only").tag(AppLockMode.settingsOnly)
+                Text("Whole App").tag(AppLockMode.wholeApp)
             }
-            .disabled(!available && !appLock.isEnabled)
-            if appLock.isEnabled {
+            .disabled(!available && appLock.mode == .off)
+            if appLock.mode != .off {
                 Picker("Ask Again After", selection: $appLock.timeout) {
                     Text("Immediately").tag(AppLockTimeout.immediately)
                     Text("2 Minutes").tag(AppLockTimeout.twoMinutes)
@@ -92,10 +94,12 @@ struct Settings: View {
         } header: {
             Text("App Lock")
         } footer: {
-            if available {
-                Text("Uses this iPhone's Face ID, Touch ID or passcode. Nothing is stored by Sinag.")
-            } else {
+            if !available {
                 Text("Set a passcode on this iPhone to use App Lock.")
+            } else if appLock.mode == .settingsOnly {
+                Text("Lights stay free to use. Opening settings, setting up or editing lanterns, schedules and playlist edits need Face ID, Touch ID or the passcode.")
+            } else {
+                Text("Uses this iPhone's Face ID, Touch ID or passcode. Nothing is stored by Sinag.")
             }
         }
     }

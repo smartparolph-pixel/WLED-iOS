@@ -7,7 +7,7 @@ struct AppLockModifier: ViewModifier {
     @Environment(\.scenePhase) private var scenePhase
 
     private var covered: Bool {
-        appLock.isLocked || (appLock.isEnabled && scenePhase != .active && !appLock.isAuthenticating)
+        appLock.isLocked || (appLock.locksWholeApp && scenePhase != .active && !appLock.isAuthenticating)
     }
 
     func body(content: Content) -> some View {
@@ -74,6 +74,38 @@ private struct AppLockScreen: View {
             if showUnlock && scenePhase == .active && !appLock.isAuthenticating {
                 await appLock.unlock()
             }
+        }
+    }
+}
+
+/// Shows `content` (a settings screen) only after Face ID, Touch ID or the passcode when App Lock is set to
+/// Settings Only; otherwise shows it straight away.
+struct SettingsGate<Content: View>: View {
+    @ObservedObject private var appLock = AppLock.shared
+    @State private var allowed = false
+    private let content: () -> Content
+
+    init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+
+    var body: some View {
+        if allowed || !appLock.settingsNeedUnlock {
+            content()
+        } else {
+            VStack(spacing: 16) {
+                Image(systemName: "lock.fill")
+                    .font(.title)
+                    .foregroundStyle(Color.accentColor)
+                Text("Unlock to change settings")
+                    .font(.title3)
+                Button("Unlock") {
+                    Task { allowed = await appLock.requireSettingsUnlock() }
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(32)
+            .task { allowed = await appLock.requireSettingsUnlock() }
         }
     }
 }

@@ -170,12 +170,15 @@ struct DeviceListView: View {
             .buttonStyle(.plain)
             .swipeActions(allowsFullSwipe: true) {
                 Button(role: .destructive) {
-                    withAnimation {
-                        deleteItems(device: device.device)
-                        let remainingDevices = devices.filter { $0 != device }
-                        // Call restore in case the selected item was deleted, this
-                        // will select another device (most likely the first one)
-                        restoreLastSelection(from: remainingDevices)
+                    // Removing a lantern is a settings change: with App Lock "Settings Only" it asks first.
+                    settingsAction {
+                        withAnimation {
+                            deleteItems(device: device.device)
+                            let remainingDevices = devices.filter { $0 != device }
+                            // Call restore in case the selected item was deleted, this
+                            // will select another device (most likely the first one)
+                            restoreLastSelection(from: remainingDevices)
+                        }
                     }
                 } label: {
                     Label("Delete", systemImage: "trash.fill")
@@ -212,12 +215,12 @@ struct DeviceListView: View {
             // 1. Add Button (Direct Access)
             Menu {
                 Button {
-                    provisionDeviceActive.toggle()
+                    settingsAction { provisionDeviceActive = true }
                 } label: {
                     Label("Set Up New Device", systemImage: "wifi.router")
                 }
                 Button {
-                    addDeviceButtonActive.toggle()
+                    settingsAction { addDeviceButtonActive = true }
                 } label: {
                     Label("Add by Address", systemImage: "network")
                 }
@@ -227,7 +230,7 @@ struct DeviceListView: View {
 
             // 2. Settings Button
             Button {
-                showSettingsSheet.toggle()
+                settingsAction { showSettingsSheet = true }
             } label: {
                 Label("Settings", systemImage: "ellipsis.circle")
             }
@@ -282,6 +285,14 @@ struct DeviceListView: View {
         viewModel.load()
         viewModel.onResume()
         viewModel.startDiscovery()
+    }
+
+    /// Runs an action that opens or changes settings, after Face ID, Touch ID or the passcode when App Lock
+    /// is set to Settings Only.
+    private func settingsAction(_ action: @escaping @MainActor () -> Void) {
+        Task {
+            if await AppLock.shared.requireSettingsUnlock() { action() }
+        }
     }
 
     private func deleteItems(device: Device) {
