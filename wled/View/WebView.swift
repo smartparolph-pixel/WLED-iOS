@@ -57,6 +57,11 @@ struct WebView: UIViewRepresentable {
             self.parent = parent
         }
 
+        /// WLED's settings, file editor and firmware update pages.
+        static func isSettingsPage(_ url: URL) -> Bool {
+            ["/settings", "/edit", "/update"].contains { url.path == $0 || url.path.hasPrefix($0 + "/") }
+        }
+
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             let langStr = {
                 switch Locale.current.language.languageCode?.identifier {
@@ -69,10 +74,24 @@ struct WebView: UIViewRepresentable {
 
             guard let htmlPath = Bundle.main.path(forResource: "errorPage.\(langStr)", ofType: "html") else { return }
             let htmlUrl = URL(fileURLWithPath: htmlPath, isDirectory: false)
-            webView.loadFileURL(htmlUrl, allowingReadAccessTo: htmlUrl)
+            // Read access to the folder, so the page's stylesheet and logo load along with it.
+            webView.loadFileURL(htmlUrl, allowingReadAccessTo: htmlUrl.deletingLastPathComponent())
         }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, preferences: WKWebpagePreferences, decisionHandler: @escaping @MainActor (WKNavigationActionPolicy, WKWebpagePreferences) -> Void) {
+            // The lantern's own Config pages are settings too: with App Lock "Settings Only" they ask first.
+            if let url = navigationAction.request.url,
+               navigationAction.targetFrame?.isMainFrame != false,
+               Self.isSettingsPage(url),
+               AppLock.shared.settingsNeedUnlock {
+                decisionHandler(.cancel, preferences)
+                Task {
+                    if await AppLock.shared.requireSettingsUnlock() {
+                        webView.load(URLRequest(url: url))
+                    }
+                }
+                return
+            }
             if navigationAction.shouldPerformDownload {
                 decisionHandler(.download, preferences)
             } else {

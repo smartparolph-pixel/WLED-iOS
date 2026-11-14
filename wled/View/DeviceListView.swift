@@ -11,10 +11,16 @@ struct DeviceListView: View {
     @State private var selection: DeviceWithState?
 
     @State private var addDeviceButtonActive: Bool = false
+    @State private var provisionDeviceActive: Bool = false
     @State private var showSettingsSheet: Bool = false
     @State private var columnVisibility = NavigationSplitViewVisibility.doubleColumn
 
     @AppStorage("lastSelectedDeviceMac") private var lastSelectedDeviceMac: String = ""
+
+    /// The devices shown in the list, for the bottom shortcut bar.
+    private var shortcutDevices: [DeviceWithState] {
+        viewModel.onlineDevices + (viewModel.showOfflineDevices ? viewModel.offlineDevices : [])
+    }
 
     private var hasHiddenDevices: Bool {
         viewModel.allDevicesWithState.contains { $0.device.isHidden }
@@ -39,9 +45,15 @@ struct DeviceListView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             list
+                .safeAreaInset(edge: .bottom) {
+                    DeviceShortcutBar(devices: shortcutDevices)
+                }
                 .toolbar { toolbar }
                 .sheet(isPresented: $addDeviceButtonActive) {
                     DeviceAddView()
+                }
+                .sheet(isPresented: $provisionDeviceActive) {
+                    ProvisionView()
                 }
                 .sheet(isPresented: $showSettingsSheet) {
                     Settings(
@@ -158,12 +170,15 @@ struct DeviceListView: View {
             .buttonStyle(.plain)
             .swipeActions(allowsFullSwipe: true) {
                 Button(role: .destructive) {
-                    withAnimation {
-                        deleteItems(device: device.device)
-                        let remainingDevices = devices.filter { $0 != device }
-                        // Call restore in case the selected item was deleted, this
-                        // will select another device (most likely the first one)
-                        restoreLastSelection(from: remainingDevices)
+                    // Removing a lantern is a settings change: with App Lock "Settings Only" it asks first.
+                    settingsAction {
+                        withAnimation {
+                            deleteItems(device: device.device)
+                            let remainingDevices = devices.filter { $0 != device }
+                            // Call restore in case the selected item was deleted, this
+                            // will select another device (most likely the first one)
+                            restoreLastSelection(from: remainingDevices)
+                        }
                     }
                 } label: {
                     Label("Delete", systemImage: "trash.fill")
@@ -189,23 +204,33 @@ struct DeviceListView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .principal) {
-            Image(.wledLogoAkemi)
+            // Color lockup in light mode, reversed lockup in dark mode (see the asset's appearances).
+            Image(.sinagLockup)
                 .resizable()
                 .scaledToFit()
-                .padding(3)
                 .frame(height: 50)
+                .accessibilityLabel("Sinag")
         }
         ToolbarItemGroup(placement: .primaryAction) {
             // 1. Add Button (Direct Access)
-            Button {
-                addDeviceButtonActive.toggle()
+            Menu {
+                Button {
+                    settingsAction { provisionDeviceActive = true }
+                } label: {
+                    Label("Set Up New Device", systemImage: "wifi.router")
+                }
+                Button {
+                    settingsAction { addDeviceButtonActive = true }
+                } label: {
+                    Label("Add by Address", systemImage: "network")
+                }
             } label: {
                 Label("Add Device", systemImage: "plus")
             }
 
             // 2. Settings Button
             Button {
-                showSettingsSheet.toggle()
+                settingsAction { showSettingsSheet = true }
             } label: {
                 Label("Settings", systemImage: "ellipsis.circle")
             }
@@ -260,6 +285,14 @@ struct DeviceListView: View {
         viewModel.load()
         viewModel.onResume()
         viewModel.startDiscovery()
+    }
+
+    /// Runs an action that opens or changes settings, after Face ID, Touch ID or the passcode when App Lock
+    /// is set to Settings Only.
+    private func settingsAction(_ action: @escaping @MainActor () -> Void) {
+        Task {
+            if await AppLock.shared.requireSettingsUnlock() { action() }
+        }
     }
 
     private func deleteItems(device: Device) {

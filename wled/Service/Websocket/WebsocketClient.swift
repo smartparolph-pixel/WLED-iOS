@@ -82,11 +82,12 @@ class WebsocketClient: NSObject, ObservableObject, URLSessionWebSocketDelegate {
         print("\(tag): Connecting to \(address)")
         let request = URLRequest(url: url, timeoutInterval: 10)
 
-        webSocketTask = urlSession.webSocketTask(with: request)
-        webSocketTask?.resume()
-        
+        let task = urlSession.webSocketTask(with: request)
+        webSocketTask = task
+        task.resume()
+
         // Start listening for messages
-        listen()
+        listen(on: task)
     }
     
     func disconnect() {
@@ -119,14 +120,14 @@ class WebsocketClient: NSObject, ObservableObject, URLSessionWebSocketDelegate {
     
     // MARK: - Message Handling
     
-    private func listen() {
-        webSocketTask?.receive { [weak self] result in
+    private func listen(on task: URLSessionWebSocketTask) {
+        task.receive { [weak self] result in
             Task {
                 guard let self = self else { return }
 
                 switch result {
                 case .failure(let error):
-                    await self.handleFailure(error)
+                    await self.handleFailure(error, task: task)
                 case .success(let message):
                     switch message {
                     case .string(let text):
@@ -141,7 +142,7 @@ class WebsocketClient: NSObject, ObservableObject, URLSessionWebSocketDelegate {
                     }
 
                     // Recursively listen for the next message
-                    await self.listen()
+                    await self.listen(on: task)
                 }
             }
         }
@@ -171,7 +172,14 @@ class WebsocketClient: NSObject, ObservableObject, URLSessionWebSocketDelegate {
         }
     }
     
-    private func handleFailure(_ error: Error) {
+    /// A callback from a task that is no longer the current one, e.g. the previous connection failing
+    /// after a reconnect. Acting on it would mark the new, working connection as offline.
+    private func isStale(_ task: URLSessionWebSocketTask) -> Bool {
+        webSocketTask != nil && task !== webSocketTask
+    }
+
+    private func handleFailure(_ error: Error, task: URLSessionWebSocketTask) {
+        if isStale(task) { return }
         print("\(tag): WebSocket failure: \(error)")
         webSocketTask = nil
         
@@ -198,11 +206,12 @@ class WebsocketClient: NSObject, ObservableObject, URLSessionWebSocketDelegate {
                 print("\(tag): Sending message: \(jsonString)")
                 let message = URLSessionWebSocketTask.Message.string(jsonString)
                 
-                webSocketTask?.send(message) { error in
+                guard let task = webSocketTask else { return }
+                task.send(message) { error in
                     if let error = error {
                         Task {
                             print("\(self.tag): Failed to send message: \(error)")
-                            await self.handleFailure(error)
+                            await self.handleFailure(error, task: task)
                         }
                     }
                 }
@@ -239,12 +248,15 @@ class WebsocketClient: NSObject, ObservableObject, URLSessionWebSocketDelegate {
         Task { @MainActor in
             let reasonString = reason.flatMap { String(data: $0, encoding: .utf8) } ?? "No reason"
             print("\(self.tag): WebSocket closing. Code: \(closeCode), reason: \(reasonString)")
+            if self.isStale(webSocketTask) { return }
 
+            // The device closed the connection: WLED drops its oldest clients when too many are open
+            // (the list, the device page, a browser...), with a normal close code too. Forget this task and
+            // reconnect, or the device would stay "offline" until the next tap.
+            self.webSocketTask = nil
+            self.isConnecting = false
             self.deviceState.websocketStatus = .disconnected
-
-            if closeCode != .normalClosure && !self.isManuallyDisconnected {
-                self.reconnect()
-            }
+            self.reconnect()
         }
     }
 }
