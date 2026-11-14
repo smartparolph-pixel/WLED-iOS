@@ -352,4 +352,25 @@ struct PresetPacksTests {
         #expect(text.contains(#""ps":[1]"#))
         #expect(PresetsFileRepair.problem(Data(#"{"0":{},"2":{"n":"Mode 1.0","seg":{"fx":9}}}"#.utf8)) == nil)
     }
+
+    // MARK: - Power on
+
+    @Test func powerOnReadsTheBootPreset() throws {
+        #expect(PowerOn.bootPreset(try parse(#"{"def":{"ps":42,"on":true,"bri":128}}"#)) == 42)
+        #expect(PowerOn.bootPreset(try parse(#"{}"#)) == 0)
+    }
+
+    @Test func powerOnSetsSkyFullOfSparksOnlyWhenNeeded() {
+        #expect(PowerOn.presetToSet(current: 0, existingIds: [1, 7], defaultId: 7) == 7)
+        #expect(PowerOn.presetToSet(current: 30, existingIds: [1, 7], defaultId: 7) == 7)
+        #expect(PowerOn.presetToSet(current: 12, existingIds: [7, 12], defaultId: 7) == nil)
+        #expect(PowerOn.presetToSet(current: 0, existingIds: [7], defaultId: nil) == nil)
+    }
+
+    @Test func powerOnConfigOnlyTouchesThePowerOnSettings() throws {
+        let full = try PowerOn.configJSON(presetId: 7, brightness: PowerOn.fullBrightness)
+        #expect(String(decoding: full, as: UTF8.self) == #"{"def":{"bri":255,"on":true,"ps":7}}"#)
+        let plain = try PowerOn.configJSON(presetId: 12)
+        #expect(String(decoding: plain, as: UTF8.self) == #"{"def":{"on":true,"ps":12}}"#)
+    }
 }

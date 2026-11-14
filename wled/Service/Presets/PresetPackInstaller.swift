@@ -144,6 +144,9 @@ struct PresetPackInstaller {
             for step in plan.unavailable where !unavailable.contains(step.name) { unavailable.append(step.name) }
         }
         let verified = created == 0 ? true : try await verify(plans)
+        // Best effort: a failure here must not hide that the playlists are ready.
+        let existing = Set(presets.keys.compactMap { Int($0) }).union(ids.values)
+        await ensurePowerOn(existingIds: existing, skyId: ids[PresetPacks.playsAfterSetup.playlist.name])
         return .ready(
             playlistIds: ids, created: created, unavailable: unavailable, verified: verified,
             custom: DevicePresets(parsing: presets).custom
@@ -275,6 +278,42 @@ struct PresetPackInstaller {
     private func url(_ path: String) throws -> URL {
         guard let url = URL(string: "http://\(address)\(path)") else { throw URLError(.badURL) }
         return url
+    }
+
+    /// Makes the lantern start 🎆 Sky Full of Sparks at 100% when power comes back, unless another power-on
+    /// playlist is already set and still exists. A settings PIN on the lantern makes this a no-op.
+    private func ensurePowerOn(existingIds: Set<Int>, skyId: Int?) async {
+        guard let data = try? await get("/json/cfg"),
+              let cfg = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let target = PowerOn.presetToSet(
+                current: PowerOn.bootPreset(cfg), existingIds: existingIds, defaultId: skyId
+              ),
+              let body = try? PowerOn.configJSON(presetId: target, brightness: PowerOn.fullBrightness)
+        else { return }
+        _ = try? await postConfig(body)
+    }
+
+    /// Makes the lantern start playlist `id` when power comes back.
+    func setPowerOn(id: Int) async -> Bool {
+        guard let body = try? PowerOn.configJSON(presetId: id) else { return false }
+        return (try? await postConfig(body)) ?? false
+    }
+
+    /// The playlist the lantern starts when power comes back; 0 means none.
+    func powerOnId() async -> Int {
+        guard let data = try? await get("/json/cfg"),
+              let cfg = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return 0 }
+        return PowerOn.bootPreset(cfg)
+    }
+
+    /// - Returns: true for a 2xx answer.
+    private func postConfig(_ body: Data) async throws -> Bool {
+        var request = URLRequest(url: try url("/json/cfg"), timeoutInterval: 10)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+        let (_, response) = try await URLSession.shared.data(for: request)
+        return (200..<300).contains((response as? HTTPURLResponse)?.statusCode ?? 0)
     }
 
     func get(_ path: String) async throws -> Data {

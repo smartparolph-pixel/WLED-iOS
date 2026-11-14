@@ -46,6 +46,30 @@ struct PresetEditorView: View {
 
     @ViewBuilder
     private func lists(_ data: PresetEditorData) -> some View {
+        if let error = viewModel.error {
+            Section { Text(error).foregroundStyle(.red) }
+        }
+        Section {
+            Picker("Plays When Powered On", selection: Binding(
+                get: { data.powerOnId },
+                set: { id in
+                    guard let playlist = data.presets.playlists.first(where: { $0.id == id }) else { return }
+                    Task { _ = await viewModel.setPowerOn(playlist) }
+                }
+            )) {
+                if !data.presets.playlists.contains(where: { $0.id == data.powerOnId }) {
+                    Text("None (static light)").tag(data.powerOnId)
+                }
+                ForEach(data.presets.playlists) { playlist in
+                    Text(playlist.name).tag(playlist.id)
+                }
+            }
+            .disabled(viewModel.saving)
+        } header: {
+            Text("Plays When Powered On")
+        } footer: {
+            Text("Starts at full brightness when the lantern is plugged in or the power comes back.")
+        }
         Section("Playlists") {
             ForEach(data.presets.playlists) { playlist in
                 if playlist.pack?.locked == true {

@@ -8,6 +8,8 @@ struct PresetEditorData {
     /// Per effect id; missing entries mean the device did not say.
     let controls: [EffectControls]
     let palettes: [String]
+    /// The playlist the lantern starts when power comes back (`def.ps`); 0 means none.
+    var powerOnId = 0
 
     func controls(for effectId: Int?) -> EffectControls {
         guard let effectId, effectId >= 0, effectId < controls.count else { return EffectControls(parsing: "") }
@@ -98,7 +100,8 @@ final class PresetEditorViewModel: ObservableObject {
                 presets: DevicePresets(parsing: presets),
                 effects: effects,
                 controls: controls.map { EffectControls(parsing: $0) },
-                palettes: palettes.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String] } ?? []
+                palettes: palettes.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String] } ?? [],
+                powerOnId: await installer.powerOnId()
             ))
         } catch {
             state = .unreachable
@@ -141,6 +144,11 @@ final class PresetEditorViewModel: ObservableObject {
             return String(localized: "A playlist can have at most 100 effects.")
         }
         return nil
+    }
+
+    /// Makes the lantern start `playlist` when power comes back (plugged in, after a power cut).
+    func setPowerOn(_ playlist: SavedPlaylist) async -> Bool {
+        await perform { await self.installer.setPowerOn(id: playlist.id) }
     }
 
     func delete(playlistId: Int) async -> Bool {
