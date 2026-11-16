@@ -39,15 +39,6 @@ struct Settings: View {
                     }
                 } header: {
                     Text("About")
-                } footer: {
-                    VStack(alignment: .center) {
-                        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-                        let bundleVersion = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1.0"
-
-                        Text("Made by Moustachauve")
-                        Text("Version \(version) (\(bundleVersion))")
-                    }
-                    .frame(maxWidth: .infinity)
                 }
 
             }
