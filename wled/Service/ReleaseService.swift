@@ -20,22 +20,21 @@ class ReleaseService {
      *      otherwise an empty string.
      */
     func getNewerReleaseTag(versionName: String, branch: Branch, ignoreVersion: String) -> String {
-        if versionName.isEmpty {
+        // Parol lanterns are only offered firmware approved for Sinag, not simply the newest release.
+        guard let approvedTag = ApprovedFirmware.update(for: versionName),
+              approvedTag != ignoreVersion,
+              version(tagName: approvedTag) != nil else {
             return ""
         }
-        let latestVersion = getLatestVersion(branch: branch)
-        guard let latestTagName = latestVersion?.tagName, latestTagName != ignoreVersion else {
-            return ""
-        }
+        return approvedTag
+    }
 
-        // If device is currently on a beta branch but the user selected a stable branch,
-        // show the latest version as an update so that the user can get out of beta.
-        if branch == .stable && versionName.contains("-b") {
-            return latestTagName
-        }
-
-        let versionCompare = latestTagName.compare(versionName, options: .numeric)
-        return versionCompare == .orderedDescending ? latestTagName : ""
+    /// A published release with this tag, so the update can be downloaded.
+    func version(tagName: String) -> Version? {
+        let fetchRequest = Version.fetchRequest()
+        fetchRequest.fetchLimit = 1
+        fetchRequest.predicate = NSPredicate(format: "tagName == %@", tagName)
+        return try? context.fetch(fetchRequest).first
     }
 
     func getLatestVersion(branch: Branch) -> Version? {
