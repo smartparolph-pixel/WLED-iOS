@@ -19,7 +19,7 @@ struct PresetPacksView: View {
         _device = ObservedObject(wrappedValue: device)
     }
 
-    private var address: String? { device.device.address }
+    private var address: String? { device.address }
 
     var body: some View {
         List {

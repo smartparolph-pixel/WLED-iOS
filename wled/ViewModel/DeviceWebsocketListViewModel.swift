@@ -58,6 +58,7 @@ class DeviceWebsocketListViewModel: NSObject, ObservableObject, NSFetchedResults
     private let offlineGracePeriod: TimeInterval = 60
     private var cancellables = Set<AnyCancellable>()
     private let sortingQueue = DispatchQueue(label: "com.wled.DeviceSortingQueue")
+    private let directConnection = DirectConnectionMonitor.shared
 
     // MARK: - Initialization
     
@@ -106,6 +107,14 @@ class DeviceWebsocketListViewModel: NSObject, ObservableObject, NSFetchedResults
             .debounce(for: .milliseconds(200), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.updateFilteredDevices(currentTime: Date())
+            }
+            .store(in: &cancellables)
+
+        // A saved lantern on its own WiFi: reach it there until the phone leaves that WiFi.
+        directConnection.$lanternMac
+            .removeDuplicates()
+            .sink { [weak self] mac in
+                self?.applyDirectConnection(mac)
             }
             .store(in: &cancellables)
 
@@ -200,6 +209,9 @@ class DeviceWebsocketListViewModel: NSObject, ObservableObject, NSFetchedResults
         newClient.onDeviceStateUpdated = { [weak self] info in
             self?.handleDeviceUpdate(deviceID: device.objectID, info: info)
         }
+        if DirectConnection.sameMac(mac, directConnection.lanternMac) {
+            newClient.deviceState.directAddress = DirectConnection.apAddress
+        }
 
         if !isPaused {
             newClient.connect()
@@ -209,6 +221,21 @@ class DeviceWebsocketListViewModel: NSObject, ObservableObject, NSFetchedResults
             client: newClient,
             lastKnownAddress: device.address ?? ""
         )
+    }
+
+    /// Points the lantern with MAC `directMac` at its own address (and every other device back at its saved
+    /// one), reconnecting those that changed. Nothing is saved.
+    private func applyDirectConnection(_ directMac: String?) {
+        for (mac, wrapper) in activeClients {
+            let state = wrapper.client.deviceState
+            let wanted = DirectConnection.sameMac(mac, directMac) ? DirectConnection.apAddress : nil
+            guard state.directAddress != wanted else { continue }
+            state.directAddress = wanted
+            wrapper.client.disconnect()
+            if !isPaused {
+                wrapper.client.connect()
+            }
+        }
     }
 
     private func handleDeviceUpdate(deviceID: NSManagedObjectID, info: DeviceStateInfo) {
@@ -291,6 +318,7 @@ class DeviceWebsocketListViewModel: NSObject, ObservableObject, NSFetchedResults
         print("[ListVM] onResume: Cancelling pending disconnect and resuming.")
         backgroundTask?.cancel()
         backgroundTask = nil
+        directConnection.check()
         guard isPaused else { return } // Nothing to resume if we never disconnected
         isPaused = false
         activeClients.values.forEach { $0.client.connect() }

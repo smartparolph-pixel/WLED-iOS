@@ -71,7 +71,11 @@ struct TimezonePickerView: View {
     @StateObject private var viewModel: TimezonePickerViewModel
 
     init(device: Device) {
-        _viewModel = StateObject(wrappedValue: TimezonePickerViewModel(address: device.address))
+        self.init(address: device.address)
+    }
+
+    init(address: String?) {
+        _viewModel = StateObject(wrappedValue: TimezonePickerViewModel(address: address))
     }
 
     var body: some View {

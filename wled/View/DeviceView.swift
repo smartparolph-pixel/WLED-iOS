@@ -79,7 +79,7 @@ struct DeviceView: View {
     }
 
     func getDeviceAddress() -> URL? {
-        guard let deviceAddress = device.device.address,
+        guard let deviceAddress = device.address,
               let url = URL(string: "http://\(deviceAddress)") else {
             return nil
         }

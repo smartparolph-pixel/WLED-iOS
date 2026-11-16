@@ -29,6 +29,9 @@ class DeviceWithState: ObservableObject, Identifiable {
     @Published var stateInfo: DeviceStateInfo?
     @Published var websocketStatus: WebsocketStatus = .disconnected
     @Published var availableUpdateVersion: String?
+    /// The lantern's own address while it is reached over its own WiFi ("Direct connection"). Never saved:
+    /// the saved home address stays in `device`.
+    @Published var directAddress: String?
 
     nonisolated let id: String
 
@@ -61,6 +64,16 @@ class DeviceWithState: ObservableObject, Identifiable {
     
     var isAPMode: Bool {
         return device.macAddress == AP_MODE_MAC_ADDRESS
+    }
+
+    /// Where to reach the device right now: the lantern's own address on a direct connection, else the saved one.
+    var address: String? {
+        directAddress ?? device.address
+    }
+
+    /// Reached over the lantern's own WiFi instead of the home WiFi.
+    var isDirect: Bool {
+        directAddress != nil
     }
 
     var hasUpdateAvailable: Bool {

@@ -39,7 +39,7 @@ final class ScheduleViewModel: ObservableObject {
     private var ntpEnabled = true
 
     init(device: DeviceWithState) {
-        address = device.device.address
+        address = device.address
         let info = device.stateInfo?.info
         currentFormat = ScheduleCodec.isCurrentFormat(buildId: info?.buildId)
         if currentFormat {

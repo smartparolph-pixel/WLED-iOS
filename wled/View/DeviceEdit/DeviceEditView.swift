@@ -67,7 +67,7 @@ struct DeviceEditView: View {
                 }
 
                 NavigationLink {
-                    TimezonePickerView(device: device.device)
+                    TimezonePickerView(address: device.address)
                 } label: {
                     Label("Set Device Time Zone", systemImage: "globe")
                         .frame(maxWidth: .infinity)

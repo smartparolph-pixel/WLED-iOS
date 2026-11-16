@@ -25,7 +25,8 @@ struct DeviceInfoTwoRows: View {
             }
             HStack(spacing: 4) {
                 WebsocketStatusIndicator(currentStatus: device.websocketStatus)
-                Text(device.device.address ?? "")
+                Text(device.isDirect ? String(localized: "Direct connection") : device.device.address ?? "")
+                    .foregroundStyle(device.isDirect ? Color.accentColor : Color.primary)
                     .lineLimit(1)
                     .fixedSize()
                     .lineSpacing(0)

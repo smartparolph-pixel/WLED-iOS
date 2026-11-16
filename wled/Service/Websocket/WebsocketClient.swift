@@ -61,7 +61,7 @@ class WebsocketClient: NSObject, ObservableObject, URLSessionWebSocketDelegate {
             return
         }
         
-        guard let address = deviceState.device.address, !address.isEmpty else {
+        guard let address = deviceState.address, !address.isEmpty else {
             print("\(tag): Device address is empty")
             return
         }
@@ -241,6 +241,10 @@ class WebsocketClient: NSObject, ObservableObject, URLSessionWebSocketDelegate {
             self.deviceState.websocketStatus = .connected
             self.retryCount = 0
             self.isConnecting = false
+            if self.deviceState.isDirect {
+                // No internet on the lantern's own WiFi: give it the phone's time so its schedules run.
+                webSocketTask.send(.string(DirectConnection.timeJSON())) { _ in }
+            }
         }
     }
 
