@@ -1,3 +1,4 @@
+import CoreData
 import Foundation
 
 /// Defaults for first-time setup of a WLED device over its own access point.
@@ -40,6 +41,14 @@ struct ProvisioningRequest {
     var timezone: WledTimezoneSetting?
     /// Saved on the device (`id.name`), so every phone shows the same name. Nil leaves it unchanged.
     var deviceName: String?
+    /// Give the lantern its own WiFi name and random password (see `LanternWifi`) instead of WLED-AP / wled1234.
+    var secureLanternWifi = true
+}
+
+/// What setup did: the added device and the lantern's own WiFi as set (nil if left as it was).
+struct ProvisioningResult {
+    let deviceID: NSManagedObjectID
+    let lanternWifi: LanternWifiCredentials?
 }
 
 enum ProvisioningProgress: Equatable {
@@ -88,7 +97,8 @@ enum ProvisioningPayloads {
         password: String,
         timezone: WledTimezoneSetting? = nil,
         led: [String: Any]? = nil,
-        name: String? = nil
+        name: String? = nil,
+        ap: [String: Any]? = nil
     ) throws -> Data {
         var payload: [String: Any] = [
             "nw": ["ins": [["ssid": ssid, "psk": password]]]
@@ -101,6 +111,9 @@ enum ProvisioningPayloads {
         }
         if let name, !name.trimmingCharacters(in: .whitespaces).isEmpty {
             payload["id"] = ["name": name]
+        }
+        if let ap {
+            payload["ap"] = ap
         }
         return try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
     }

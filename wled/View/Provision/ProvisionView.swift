@@ -14,8 +14,8 @@ struct ProvisionView: View {
                         form(ssidError: ssidError, errorMessage: errorMessage)
                     case .working(let progress):
                         working(progress)
-                    case .success(let deviceName, let presets):
-                        success(deviceName, presets: presets)
+                    case .success(let deviceName, let presets, let lanternWifi):
+                        success(deviceName, presets: presets, lanternWifi: lanternWifi)
                     }
                 }
                 .padding()
@@ -86,6 +86,14 @@ struct ProvisionView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Only change these if your device's setup network is not called WLED-AP, for example on products with their own name.")
                     .font(.caption)
+                let saved = viewModel.savedLanternWifis
+                if !saved.isEmpty {
+                    Text("Setting up a Parol again? Use its own WiFi:")
+                        .font(.caption)
+                    ForEach(saved, id: \.self) { credentials in
+                        Button(credentials.ssid) { viewModel.use(credentials) }
+                    }
+                }
                 TextField("Setup network name starts with", text: $viewModel.apSsidPrefix)
                 Group {
                     if showPassword {
@@ -110,7 +118,7 @@ struct ProvisionView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func success(_ name: String, presets: PackSetupResult?) -> some View {
+    private func success(_ name: String, presets: PackSetupResult?, lanternWifi: LanternWifiCredentials?) -> some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.seal")
                 .font(.system(size: 50))
@@ -125,6 +133,9 @@ struct ProvisionView: View {
                     ProgressView()
                     Text("Preparing playlists…")
                 }
+            }
+            if let lanternWifi {
+                LanternWifiCard(credentials: lanternWifi)
             }
             Text("Tip: protect your device by setting a settings PIN and enabling the OTA lock under Config → Security & Updates.")
                 .font(.caption)

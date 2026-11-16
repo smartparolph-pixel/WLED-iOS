@@ -76,6 +76,14 @@ struct DeviceEditView: View {
                 .padding(.top)
 
                 NavigationLink {
+                    LanternWifiView(address: device.address, mac: device.device.macAddress)
+                } label: {
+                    Label("Parol WiFi", systemImage: "wifi")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                NavigationLink {
                     PresetPacksView(device: device)
                 } label: {
                     Label("Presets & Playlists", systemImage: "sparkles")

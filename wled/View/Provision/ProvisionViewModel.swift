@@ -21,12 +21,24 @@ final class ProvisionViewModel: ObservableObject {
         case form(ssidError: String = "", errorMessage: String = "")
         case working(ProvisioningProgress)
         /// `presets` is nil while the playlists are still being added to the new device.
-        case success(deviceName: String, presets: PackSetupResult?)
+        /// `lanternWifi`: the lantern's own WiFi as set during setup.
+        case success(deviceName: String, presets: PackSetupResult?, lanternWifi: LanternWifiCredentials?)
 
         var isForm: Bool {
             if case .form = self { return true }
             return false
         }
+    }
+
+    /// Lantern WiFis saved on this phone, offered as the setup network when setting a lantern up again.
+    var savedLanternWifis: [LanternWifiCredentials] {
+        LanternWifiStore.shared.all.values.sorted { $0.ssid < $1.ssid }
+    }
+
+    /// Sets the setup network to a lantern's own WiFi saved on this phone.
+    func use(_ credentials: LanternWifiCredentials) {
+        apSsidPrefix = credentials.ssid
+        apPassword = credentials.password
     }
 
     func start() {
@@ -67,14 +79,16 @@ final class ProvisionViewModel: ObservableObject {
         task = Task { [weak self] in
             guard let self else { return }
             do {
-                let id = try await service.provision(request) { [weak self] progress in
+                let result = try await service.provision(request) { [weak self] progress in
                     self?.step = .working(progress)
                 }
                 let context = PersistenceController.shared.container.viewContext
-                let device = context.object(with: id) as? Device
+                let device = context.object(with: result.deviceID) as? Device
                 let name = device?.displayName ?? ""
-                step = .success(deviceName: name, presets: nil)
-                step = .success(deviceName: name, presets: await addPresetPacks(address: device?.address))
+                let wifi = result.lanternWifi
+                step = .success(deviceName: name, presets: nil, lanternWifi: wifi)
+                let presets = await addPresetPacks(address: device?.address)
+                step = .success(deviceName: name, presets: presets, lanternWifi: wifi)
             } catch is CancellationError {
                 // Dismissed by the user; nothing to show.
             } catch let error as ProvisioningError {

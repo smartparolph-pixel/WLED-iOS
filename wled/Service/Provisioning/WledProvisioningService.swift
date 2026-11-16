@@ -27,21 +27,24 @@ final class WledProvisioningService {
         self.firstContactService = firstContactService
     }
 
-    /// - Returns: The Core Data object ID of the added device (resolve it on the main context).
+    /// - Returns: The added device's Core Data object ID (resolve it on the main context) and the lantern's
+    ///   own WiFi as set.
     func provision(
         _ request: ProvisioningRequest,
         onProgress: @escaping @MainActor (ProvisioningProgress) -> Void
-    ) async throws -> NSManagedObjectID {
+    ) async throws -> ProvisioningResult {
         onProgress(.joiningSetupNetwork)
         try await joinSetupNetwork(request)
 
         let info: Info
+        var lanternWifi: LanternWifiCredentials?
         do {
             let session = makeSession()
             info = try await fetchInfo(session)
 
             onProgress(.sendingCredentials)
-            try await postCredentials(session, request, led: await powerLimit(session))
+            lanternWifi = makeLanternWifi(for: request, mac: info.mac)
+            try await postCredentials(session, request, led: await powerLimit(session), lanternWifi: lanternWifi)
 
             onProgress(.rebootingDevice)
             try await Task.sleep(for: ProvisioningDefaults.configWriteGrace)
@@ -55,7 +58,18 @@ final class WledProvisioningService {
         onProgress(.waitingForDevice)
         try await Task.sleep(for: ProvisioningDefaults.rebootSettle)
         let address = try await waitForDevice(macAddress: info.mac)
-        return try await firstContactService.fetchAndUpsertDevice(rawAddress: address)
+        let deviceID = try await firstContactService.fetchAndUpsertDevice(rawAddress: address)
+        return ProvisioningResult(deviceID: deviceID, lanternWifi: lanternWifi)
+    }
+
+    /// The lantern's own WiFi to set: the one this phone already saved for it (setting it up again keeps the
+    /// same password), else a new one. Saved before it is sent, so it can't be lost if the app is closed.
+    private func makeLanternWifi(for request: ProvisioningRequest, mac: String?) -> LanternWifiCredentials? {
+        guard request.secureLanternWifi, let mac, !mac.isEmpty else { return nil }
+        let store = LanternWifiStore.shared
+        let credentials = store.credentials(forMac: mac) ?? LanternWifi.newCredentials(mac: mac)
+        store.save(credentials, forMac: mac)
+        return credentials
     }
 
     // MARK: - Step 1: join / leave the setup AP
@@ -147,7 +161,12 @@ final class WledProvisioningService {
         return ProvisioningPayloads.powerLimitConfig(cfg)
     }
 
-    private func postCredentials(_ session: URLSession, _ request: ProvisioningRequest, led: [String: Any]?) async throws {
+    private func postCredentials(
+        _ session: URLSession,
+        _ request: ProvisioningRequest,
+        led: [String: Any]?,
+        lanternWifi: LanternWifiCredentials?
+    ) async throws {
         var urlRequest = URLRequest(url: try apURL("/json/cfg"))
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -156,7 +175,8 @@ final class WledProvisioningService {
             password: request.homePassword,
             timezone: request.timezone,
             led: led,
-            name: request.deviceName
+            name: request.deviceName,
+            ap: lanternWifi.map(LanternWifi.apConfig)
         )
         let (_, response) = try await session.data(for: urlRequest)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {

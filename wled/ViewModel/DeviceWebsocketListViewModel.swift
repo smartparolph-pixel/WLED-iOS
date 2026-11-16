@@ -354,6 +354,9 @@ class DeviceWebsocketListViewModel: NSObject, ObservableObject, NSFetchedResults
     
     func deleteDevice(_ device: Device) {
         print("[ListVM] Deleting device \(device.originalName ?? "")")
+        if let mac = device.macAddress {
+            LanternWifiStore.shared.remove(mac: mac)
+        }
         // Capture context locally to avoid isolation issues in the closure
         let objectID = device.objectID
         let ctx = context
