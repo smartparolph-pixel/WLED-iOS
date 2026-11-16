@@ -39,6 +39,10 @@ struct Settings: View {
                     }
                 } header: {
                     Text("About")
+                } footer: {
+                    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                    Text("Sinag version \(version)")
+                        .frame(maxWidth: .infinity)
                 }
 
             }
