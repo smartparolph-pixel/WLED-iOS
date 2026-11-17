@@ -24,10 +24,16 @@ struct DeviceEditView: View {
                 .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
 
                 VStack(alignment: .leading) {
-                    Text("Custom Name")
-                    TextField("Custom Name", text: $viewModel.customName)
+                    Text("Lantern Name")
+                    TextField("Lantern Name", text: $viewModel.lanternName)
                         .submitLabel(.done)
+                        .textInputAutocapitalization(.words)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
+                    Text(viewModel.renameHint)
+                        .font(.caption)
+                        .foregroundStyle(
+                            viewModel.renameStatus == .empty || viewModel.renameStatus == .tooLong ? .red : .secondary
+                        )
                 }
 
                 Toggle("Hide this Device", isOn: $viewModel.hideDevice)

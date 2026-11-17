@@ -86,4 +86,11 @@ struct ProvisioningPayloadsTests {
         let other = try #require(URL(string: "https://sinagtechlabs.com/other.html?a=192.168.68.60"))
         #expect(ParolShareLink.address(from: other) == nil)
     }
+
+    @Test func renameSetsOnlyTheLanternName() throws {
+        let json = String(decoding: try ProvisioningPayloads.nameConfigJSON("Living Room Parol"), as: UTF8.self)
+        #expect(json == "{\"id\":{\"name\":\"Living Room Parol\"}}")
+        let withPin = try JSONSerialization.jsonObject(with: try ProvisioningPayloads.nameConfigJSON("Parol", pin: "1234")) as? [String: Any]
+        #expect(withPin?["pin"] as? String == "1234")
+    }
 }

@@ -118,6 +118,14 @@ enum ProvisioningPayloads {
         return try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
     }
 
+    /// Body for `POST /json/cfg` that renames the lantern (`id.name`, WLED's "Server description"), so every
+    /// phone shows the same name. `pin` if the lantern has a settings PIN.
+    static func nameConfigJSON(_ name: String, pin: String? = nil) throws -> Data {
+        var payload: [String: Any] = ["id": ["name": name]]
+        if let pin, !pin.isEmpty { payload["pin"] = pin }
+        return try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
+    }
+
     /// `hw.led` for `POST /json/cfg` that sets the brightness limiter to `limit` mA, built from the
     /// device's current `/json/cfg`.
     ///
