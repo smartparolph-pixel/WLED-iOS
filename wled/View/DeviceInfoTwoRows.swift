@@ -14,6 +14,15 @@ struct DeviceInfoTwoRows: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
+                if device.isOnline {
+                    // The lantern's current light colour.
+                    Circle()
+                        .fill(device.currentColor)
+                        .overlay(Circle().stroke(Color.secondary.opacity(0.5), lineWidth: 1))
+                        .frame(width: 12, height: 12)
+                        .padding(.trailing, 4)
+                        .accessibilityHidden(true)
+                }
                 Text(device.device.displayName)
                     .font(.headline.leading(.tight))
                     .lineLimit(2)

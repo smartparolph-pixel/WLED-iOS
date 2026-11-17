@@ -12,6 +12,7 @@ struct Settings: View {
     @Binding var showOfflineDevices: Bool
 
     @ObservedObject private var appLock = AppLock.shared
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
 
     // Environment to dismiss the sheet
     @Environment(\.dismiss) private var dismiss
@@ -19,6 +20,16 @@ struct Settings: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Appearance") {
+                    Picker(selection: $appearance) {
+                        ForEach(AppAppearance.allCases) { option in
+                            Text(option.title).tag(option)
+                        }
+                    } label: {
+                        Label("Appearance", systemImage: "circle.lefthalf.filled")
+                    }
+                }
+
                 Section("View Options") {
                     Toggle(isOn: $showHiddenDevices) {
                         Label("Show Hidden Devices", systemImage: "eye")

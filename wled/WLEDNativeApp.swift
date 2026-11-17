@@ -8,6 +8,7 @@ struct WLEDNativeApp: App {
     @ObservedObject private var appLock = AppLock.shared
     /// Result of opening a "Share Parol" link, shown as an alert.
     @State private var shareMessage: String?
+    @AppStorage(AppAppearance.storageKey) private var appearance: AppAppearance = .system
     
     var body: some Scene {
         WindowGroup {
@@ -27,6 +28,7 @@ struct WLEDNativeApp: App {
                     Button("OK", role: .cancel) {}
                 }
                 .appLock(appLock)
+                .preferredColorScheme(appearance.colorScheme)
         }
     }
     

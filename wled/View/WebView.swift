@@ -29,6 +29,21 @@ struct WebView: UIViewRepresentable {
         print("WebView updateUIView, current url: \(url, default: "[unknown]")")
         webView.underPageBackgroundColor = .systemBackground
 
+        // The lantern's page is light or dark with the app: set before each page loads, and right away when
+        // the app's appearance changes.
+        let light = context.environment.colorScheme == .light
+        if context.coordinator.lightTheme != light {
+            context.coordinator.lightTheme = light
+            let controller = webView.configuration.userContentController
+            controller.removeAllUserScripts()
+            controller.addUserScript(WKUserScript(
+                source: WledPageTheme.script(light: light),
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            ))
+            webView.evaluateJavaScript(WledPageTheme.script(light: light), completionHandler: nil)
+        }
+
         if let url = self.url, url != context.coordinator.lastLoadedUrl {
             context.coordinator.lastLoadedUrl = url
             let request = URLRequest(url: url)
@@ -51,6 +66,8 @@ struct WebView: UIViewRepresentable {
     class Coordinator: NSObject, WKUIDelegate, WKNavigationDelegate, WKDownloadDelegate {
         var parent: WebView
         var lastLoadedUrl: URL?
+        /// The theme the lantern's page was last given; nil until the first update.
+        var lightTheme: Bool?
         private var filePathDestination: URL?
 
         init(_ parent: WebView) {

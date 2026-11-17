@@ -18,7 +18,7 @@ struct DeviceEditView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 10) {
-                Card(style: .device(color: device.currentColor)) {
+                Card {
                     DeviceInfoTwoRows(device: device)
                 }
                 .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
