@@ -34,7 +34,7 @@ struct ProvisionView: View {
                     }
                 }
             }
-            .navigationTitle("Set Up New Device")
+            .navigationTitle("Set Up a New Parol")
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])

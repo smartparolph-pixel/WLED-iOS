@@ -23,6 +23,9 @@ enum ProvisioningDefaults {
     /// Brightness limiter for the lanterns' 5 V 3 A (15 W) power supply, set during setup: 2000 mA leaves
     /// headroom below the supply's rating. WLED dims all LEDs to stay under it.
     static let powerLimitMilliamps = 2000
+    /// LEDs in a lantern, set during setup on its LED output (WLED's factory default is 30, so only part of the
+    /// lantern lit up). Lanterns with several outputs keep their own lengths.
+    static let ledCount = 165
     /// Suggested name for a new lantern; the user can change it before setup starts.
     static let deviceName = "Living Room Parol"
     /// WLED keeps 32 bytes of the device name (`id.name`).
@@ -135,10 +138,16 @@ enum ProvisioningPayloads {
     /// is sent back whole, with only `maxpwr` changed.
     ///
     /// - Returns: nil if the config has no LED outputs, so nothing is changed.
-    static func powerLimitConfig(_ cfg: [String: Any], limit: Int = ProvisioningDefaults.powerLimitMilliamps) -> [String: Any]? {
+    static func powerLimitConfig(
+        _ cfg: [String: Any],
+        limit: Int = ProvisioningDefaults.powerLimitMilliamps,
+        ledCount: Int? = ProvisioningDefaults.ledCount
+    ) -> [String: Any]? {
         let led = (cfg["hw"] as? [String: Any])?["led"] as? [String: Any]
         let outputs = (led?["ins"] as? [Any] ?? []).compactMap { $0 as? [String: Any] }
-        let lengths = outputs.map { ($0["len"] as? NSNumber)?.intValue ?? 0 }
+        // One output (a lantern): set its length too; several outputs keep theirs.
+        let newLength = ledCount.flatMap { $0 > 0 && outputs.count == 1 ? $0 : nil }
+        let lengths = newLength.map { [$0] } ?? outputs.map { ($0["len"] as? NSNumber)?.intValue ?? 0 }
         let total = lengths.reduce(0, +)
         guard !outputs.isEmpty, total > 0 else { return nil }
         var left = limit
@@ -148,6 +157,7 @@ enum ProvisioningPayloads {
             left -= share
             var copy = output
             copy["maxpwr"] = share
+            if newLength != nil { copy["len"] = lengths[index] }
             ins.append(copy)
         }
         return ["maxpwr": limit, "ins": ins]

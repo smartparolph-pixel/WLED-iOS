@@ -45,7 +45,7 @@ struct ProvisioningPayloadsTests {
         #expect(sentLed["maxpwr"] as? Int == 2000)
         let output = try #require((sentLed["ins"] as? [[String: Any]])?.first)
         #expect(output["maxpwr"] as? Int == 2000)
-        #expect(output["len"] as? Int == 160)
+        #expect(output["len"] as? Int == 165)
         #expect(output["pin"] as? [Int] == [2])
         #expect(output["type"] as? Int == 22)
         #expect(output["ledma"] as? Int == 55)
@@ -65,6 +65,15 @@ struct ProvisioningPayloadsTests {
     @Test func powerLimitChangesNothingWithoutOutputs() {
         #expect(ProvisioningPayloads.powerLimitConfig(["hw": ["led": [String: Any]()]]) == nil)
         #expect(ProvisioningPayloads.powerLimitConfig([:]) == nil)
+    }
+
+    @Test func ledCountIs165OnAFactoryLanternAndCanBeLeftAlone() throws {
+        // WLED's factory default: one output of 30 LEDs.
+        let cfg: [String: Any] = ["hw": ["led": ["ins": [["start": 0, "len": 30, "pin": [2]]]]]]
+        let ins = try #require(ProvisioningPayloads.powerLimitConfig(cfg)?["ins"] as? [[String: Any]])
+        #expect(ins[0]["len"] as? Int == 165)
+        let kept = try #require(ProvisioningPayloads.powerLimitConfig(cfg, ledCount: nil)?["ins"] as? [[String: Any]])
+        #expect(kept[0]["len"] as? Int == 30)
     }
 
     @Test func deviceNameIsSavedOnTheDevice() throws {

@@ -40,7 +40,7 @@ struct DeviceAddView: View {
                     }
                 }
             }
-            .navigationTitle("New Device")
+            .navigationTitle("Add a Parol by IP Address")
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium])

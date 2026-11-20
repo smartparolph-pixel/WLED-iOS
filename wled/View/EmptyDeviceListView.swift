@@ -33,7 +33,7 @@ struct EmptyDeviceListView: View {
             // these views and reach the underlying List.
             .allowsHitTesting(false)
 
-            Button("Add a New Device", systemImage: "plus") {
+            Button("Add a Parol by IP Address", systemImage: "plus") {
                 addDeviceButtonActive = true
             }
             .buttonStyle(.borderedProminent)

@@ -217,15 +217,15 @@ struct DeviceListView: View {
                 Button {
                     settingsAction { provisionDeviceActive = true }
                 } label: {
-                    Label("Set Up New Device", systemImage: "wifi.router")
+                    Label("Set Up a New Parol", systemImage: "wifi.router")
                 }
                 Button {
                     settingsAction { addDeviceButtonActive = true }
                 } label: {
-                    Label("Add by Address", systemImage: "network")
+                    Label("Add a Parol by IP Address", systemImage: "network")
                 }
             } label: {
-                Label("Add Device", systemImage: "plus")
+                Label("Add Parol", systemImage: "plus")
             }
 
             // 2. Settings Button
