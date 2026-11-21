@@ -14,6 +14,15 @@ struct DeviceInfoTwoRows: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
+                if device.isOnline {
+                    // The lantern's current light colour.
+                    Circle()
+                        .fill(device.currentColor)
+                        .overlay(Circle().stroke(Color.secondary.opacity(0.5), lineWidth: 1))
+                        .frame(width: 12, height: 12)
+                        .padding(.trailing, 4)
+                        .accessibilityHidden(true)
+                }
                 Text(device.device.displayName)
                     .font(.headline.leading(.tight))
                     .lineLimit(2)
@@ -25,7 +34,8 @@ struct DeviceInfoTwoRows: View {
             }
             HStack(spacing: 4) {
                 WebsocketStatusIndicator(currentStatus: device.websocketStatus)
-                Text(device.device.address ?? "")
+                Text(device.isDirect ? String(localized: "Direct connection") : device.device.address ?? "")
+                    .foregroundStyle(device.isDirect ? Color.accentColor : Color.primary)
                     .lineLimit(1)
                     .fixedSize()
                     .lineSpacing(0)

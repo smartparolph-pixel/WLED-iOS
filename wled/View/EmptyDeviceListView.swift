@@ -12,14 +12,14 @@ struct EmptyDeviceListView: View {
     @Binding var showHiddenDevices: Bool
     var hasHiddenDevices: Bool
 
-    private let imageSize: CGFloat = 150
+    private let imageSize: CGFloat = 96
 
     var body: some View {
         VStack {
             Spacer()
 
             VStack {
-                Image(.akemi018Teeth)
+                Image(.sinagAppIcon)
                     .resizable()
                     .scaledToFit()
                     .frame(width: imageSize)
@@ -33,7 +33,7 @@ struct EmptyDeviceListView: View {
             // these views and reach the underlying List.
             .allowsHitTesting(false)
 
-            Button("Add a New Device", systemImage: "plus") {
+            Button("Add a Parol by IP Address", systemImage: "plus") {
                 addDeviceButtonActive = true
             }
             .buttonStyle(.borderedProminent)

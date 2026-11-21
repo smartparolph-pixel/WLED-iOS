@@ -2,7 +2,6 @@ import SwiftUI
 
 struct DeviceListItemView: View {
     @Environment(\.managedObjectContext) private var viewContext
-    @Environment(\.colorScheme) var colorScheme
     @ObservedObject var device: DeviceWithState
 
     var isSelected: Bool = false
@@ -14,12 +13,8 @@ struct DeviceListItemView: View {
     @State private var brightness: Double = 0.0
 
     var body: some View {
-        let fixedDeviceColor = device.currentColor.fixDisplayColor(colorScheme: colorScheme)
-        let backgroundColor = isSelected
-        ? fixedDeviceColor.opacity(DeviceSelectionStyle.Style.selectedOpacity)
-        : fixedDeviceColor.opacity(DeviceSelectionStyle.Style.unselectedOpacity)
-
-        Card(style: .device(color: backgroundColor)) {
+        // Sinag colours on every card; the lantern's current light colour is the dot next to its name.
+        Card {
             HStack {
                 DeviceInfoTwoRows(device: device)
 
@@ -44,8 +39,7 @@ struct DeviceListItemView: View {
                 }
             )
         }
-        .applyDeviceSelectionStyle(isSelected: isSelected, color: fixedDeviceColor)
-        .animation(.linear(duration: 0.3), value: fixedDeviceColor)
+        .applyDeviceSelectionStyle(isSelected: isSelected, color: .accentColor)
         .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
         .onAppear {
             brightness = Double(device.stateInfo?.state.brightness ?? 0)

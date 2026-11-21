@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Sinag app icon, navy">
+  <title>Sinag app icon, navy</title>
+  <rect width="512" height="512" rx="112" fill="#122340"/>
+  <path transform="translate(83.16 433.47) scale(0.47840 -0.47840)" d="M32 183H201Q204 154 228 136Q252 118 287 118Q319 118 336.5 130.5Q354 143 354 163Q354 187 329 198.5Q304 210 248 224Q188 238 148 253.5Q108 269 79 302.5Q50 336 50 393Q50 441 76.5 480.5Q103 520 154.5 543Q206 566 277 566Q382 566 442.5 514Q503 462 512 376H354Q350 405 328.5 422Q307 439 272 439Q242 439 226 427.5Q210 416 210 396Q210 372 235.5 360Q261 348 315 336Q377 320 416 304.5Q455 289 484.5 254.5Q514 220 515 162Q515 113 487.5 74.5Q460 36 408.5 14Q357 -8 289 -8Q216 -8 159 17Q102 42 69 85.5Q36 129 32 183Z" fill="#E4A82E"/>
+  <g transform="translate(330.00 52.00) scale(3.4091) translate(0 4)"><path d="M14 14 L16.8 23.2 L26 26 L16.8 28.8 L14 38 L11.2 28.8 L2 26 L11.2 23.2 Z" fill="#E4A82E" stroke="#E4A82E" stroke-width="0.6" stroke-linejoin="round"/><path d="M 26 6 A 8 8 0 0 1 34 14" fill="none" stroke="#E4A82E" stroke-width="3.5" stroke-linecap="round"/><path d="M 26 -1 A 15 15 0 0 1 41 14" fill="none" stroke="#F3C875" stroke-width="3.5" stroke-linecap="round"/></g>
+</svg>

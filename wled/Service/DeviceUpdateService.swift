@@ -255,7 +255,7 @@ class DeviceUpdateService: ObservableObject {
               FileManager.default.fileExists(atPath: binaryURL.path) else {
             throw UpdateError.fileNotFound
         }
-        guard let deviceAddress = device.device.address,
+        guard let deviceAddress = device.address,
               let url = URL(string: "http://\(deviceAddress)/update") else {
             throw UpdateError.invalidURL
         }
