@@ -225,11 +225,18 @@ struct PresetPackInstaller {
         (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
-    /// presets.json as it is on the device; `{}` when it has none yet.
+    /// presets.json as it is on the device, read a second time when the first read looks damaged: a read cut
+    /// short (the phone switching WiFi, the lantern busy writing) must not be taken for a damaged file.
     private func presetsData() async throws -> Data {
-        let (data, response) = try await URLSession.shared.data(
-            for: URLRequest(url: try url("/presets.json"), timeoutInterval: 10)
-        )
+        let first = try await presetsDataOnce()
+        if Self.parse(first) != nil, PresetsFileRepair.problem(first) == nil { return first }
+        try await Task.sleep(for: .milliseconds(1500))
+        return try await presetsDataOnce()
+    }
+
+    /// presets.json as it is on the device; `{}` when it has none yet.
+    private func presetsDataOnce() async throws -> Data {
+        let (data, response) = try await URLSession.shared.data(for: request(try url("/presets.json")))
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         if status == 404 { return Data("{}".utf8) }
         guard (200..<300).contains(status) else { throw URLError(.badServerResponse) }
@@ -317,7 +324,13 @@ struct PresetPackInstaller {
     }
 
     func get(_ path: String) async throws -> Data {
-        try await URLSession.shared.data(for: URLRequest(url: try url(path), timeoutInterval: 10)).0
+        try await URLSession.shared.data(for: request(try url(path))).0
+    }
+
+    /// Lanterns are always asked directly, never from a cache: different lanterns share the same address on a
+    /// direct connection (4.3.2.1), and a lantern's files change under the same URL.
+    private func request(_ url: URL) -> URLRequest {
+        URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
     }
 
     /// - Returns: true for a 2xx answer.
