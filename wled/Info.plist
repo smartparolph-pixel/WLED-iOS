@@ -2,13 +2,30 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleDisplayName</key>
+	<string>Sinag</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
-		<key>NSAllowsArbitraryLoads</key>
+		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>Sinag lantern link</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>wled</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Sinag uses Face ID to unlock the app when App Lock is on.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Your location is only used to set the device's latitude and longitude, so sunrise and sunset schedules happen at the right time.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_wled._tcp</string>

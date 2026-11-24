@@ -87,9 +87,11 @@ actor DeviceFirstContactService {
                 return false
             }
 
-            if existingDevice.address != address {
+            // The lantern's own address (4.3.2.1) only works on its WiFi: keep the saved home one.
+            let newAddress = DirectConnection.addressToSave(saved: existingDevice.address, newAddress: cleanAddress)
+            if existingDevice.address != newAddress {
                 logger.info("Fast update: IP changed for \(existingDevice.originalName ?? "Unknown") (\(macAddress))")
-                existingDevice.address = cleanAddress
+                existingDevice.address = newAddress
 
                 do {
                     try context.save()
@@ -160,7 +162,9 @@ actor DeviceFirstContactService {
                     device = existingDevice
                 } else {
                     logger.debug("Updating existing device: \(macAddress)")
-                    existingDevice.address = hostname
+                    existingDevice.address = DirectConnection.addressToSave(
+                        saved: existingDevice.address, newAddress: hostname
+                    )
                     existingDevice.originalName = name
                     device = existingDevice
                 }

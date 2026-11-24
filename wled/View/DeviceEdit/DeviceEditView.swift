@@ -18,16 +18,22 @@ struct DeviceEditView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 10) {
-                Card(style: .device(color: device.currentColor)) {
+                Card {
                     DeviceInfoTwoRows(device: device)
                 }
                 .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8))
 
                 VStack(alignment: .leading) {
-                    Text("Custom Name")
-                    TextField("Custom Name", text: $viewModel.customName)
+                    Text("Lantern Name")
+                    TextField("Lantern Name", text: $viewModel.lanternName)
                         .submitLabel(.done)
+                        .textInputAutocapitalization(.words)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
+                    Text(viewModel.renameHint)
+                        .font(.caption)
+                        .foregroundStyle(
+                            viewModel.renameStatus == .empty || viewModel.renameStatus == .tooLong ? .red : .secondary
+                        )
                 }
 
                 Toggle("Hide this Device", isOn: $viewModel.hideDevice)
@@ -65,6 +71,32 @@ struct DeviceEditView: View {
                     .animation(.default, value: device.availableUpdateVersion)
                     .animation(.default, value: viewModel.isCheckingForUpdates)
                 }
+
+                NavigationLink {
+                    TimezonePickerView(address: device.address)
+                } label: {
+                    Label("Set Device Time Zone", systemImage: "globe")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .padding(.top)
+
+                NavigationLink {
+                    LanternWifiView(address: device.address, mac: device.device.macAddress)
+                } label: {
+                    Label("Parol WiFi", systemImage: "wifi")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+
+                NavigationLink {
+                    PresetPacksView(device: device)
+                } label: {
+                    Label("Presets & Playlists", systemImage: "sparkles")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .padding(.bottom)
 
                 Text("Mac Address: \(device.device.macAddress ?? "Unknown")")
                     .font(.caption)
