@@ -10,22 +10,30 @@ import SwiftUI
 struct DeviceInfoTwoRows: View {
     @Environment(\.managedObjectContext) private var viewContext
     @ObservedObject var device: DeviceWithState
-    /// Set once the lantern has been unreachable for `offlineTextDelay`, see `showOfflineText`.
-    @State private var offlineLongEnough = false
+    /// The lantern has been connected since this row appeared.
+    @State private var wasOnline = false
+    /// Set once a dropped connection has stayed down for `reconnectGrace`.
+    @State private var gapTooLong = false
 
-    private static let offlineTextDelay: Duration = .seconds(10)
+    private static let reconnectGrace: Duration = .seconds(10)
 
-    /// "(Offline, …)" after the address: never on a direct connection, where the row only says
-    /// "Direct connection", and otherwise only after a short wait. WLED closes websockets when it has too
-    /// many open (the list, the lantern page, a browser), and the quick reconnect made the text flash.
+    /// Whether to show the lantern as connected. One that was connected keeps looking connected for
+    /// `reconnectGrace` while the app reconnects: WLED closes websockets when it has too many open (the
+    /// list, the lantern page, a browser), and showing each short gap made the status line flash.
+    private var online: Bool {
+        device.isOnline || (wasOnline && !gapTooLong)
+    }
+
+    /// "(Offline, …)" after the address; never on a direct connection, where the row only says
+    /// "Direct connection".
     private var showOfflineText: Bool {
-        !device.isOnline && !device.isDirect && offlineLongEnough
+        !online && !device.isDirect
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
-                if device.isOnline {
+                if online {
                     // The lantern's current light colour.
                     Circle()
                         .fill(device.currentColor)
@@ -44,7 +52,7 @@ struct DeviceInfoTwoRows: View {
                 }
             }
             HStack(spacing: 4) {
-                WebsocketStatusIndicator(currentStatus: device.websocketStatus)
+                WebsocketStatusIndicator(currentStatus: online ? .connected : device.websocketStatus)
                 Text(device.isDirect ? String(localized: "Direct connection") : device.device.address ?? "")
                     .foregroundStyle(device.isDirect ? Color.accentColor : Color.primary)
                     .lineLimit(1)
@@ -53,11 +61,11 @@ struct DeviceInfoTwoRows: View {
                 let signalStrength = Int(device.stateInfo?.info.wifi.signal ?? 0)
                 Label {
                     Text(
-                        device.isOnline ? "Signal Strength: \(signalStrength)" : "Offline"
+                        online ? "Signal Strength: \(signalStrength)" : "Offline"
                     )
                 } icon: {
                     getSignalIcon(
-                        isOnline: device.isOnline,
+                        isOnline: online,
                         signalStrength: signalStrength
                     )
                 }
@@ -88,10 +96,13 @@ struct DeviceInfoTwoRows: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .task(id: device.isOnline) {
-            offlineLongEnough = false
-            guard !device.isOnline else { return }
-            try? await Task.sleep(for: Self.offlineTextDelay)
-            if !Task.isCancelled { offlineLongEnough = true }
+            if device.isOnline {
+                wasOnline = true
+                gapTooLong = false
+                return
+            }
+            try? await Task.sleep(for: Self.reconnectGrace)
+            if !Task.isCancelled { gapTooLong = true }
         }
     }
 
