@@ -38,7 +38,9 @@ enum PresetPacks {
 
     /// Speeds that differ from the effect's default. Sunrise's speed is its length in minutes (60 by
     /// default), which looks dark for most of a 60 s playlist slot; 1 makes it rise within the slot.
-    private static let speeds = ["Sunrise": 1]
+    /// Lightning and Halloween Eyes are dark between bursts for up to 13 s and 33 s at their defaults:
+    /// Lightning 235 strikes at most 1.9 s apart, Halloween Eyes 8 ("Eye off time") waits 1–2 s.
+    private static let speeds = ["Sunrise": 1, "Lightning": 235, "Halloween Eyes": 8]
 
     /// A pack whose presets are named after their effects, so an effect used by several playlists is saved
     /// once. The playlist name starts with `icon`, which is also its quick-load button.

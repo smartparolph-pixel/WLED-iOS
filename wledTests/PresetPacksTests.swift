@@ -110,6 +110,13 @@ struct PresetPacksTests {
         #expect(PresetPacks.all.filter { $0 != random }.allSatisfy { !$0.locked })
     }
 
+    @Test func lightningAndHalloweenEyesBurstAboutEveryTwoSeconds() {
+        let speeds = Dictionary(uniqueKeysWithValues: PresetPacks.spookySwitch.presets.map { ($0.name, $0.speed) })
+        #expect(speeds["Lightning"] == 235)
+        #expect(speeds["Halloween Eyes"] == 8)
+        #expect(speeds["Strobe Mega"] == .some(nil))
+    }
+
     @Test func sunriseGetsAOneMinuteSpeedAndOldCopiesAreUpdated() throws {
         #expect(PresetPacks.riseAndShine.presets.first == EffectPreset(name: "Sunrise", effect: "Sunrise", speed: 1))
         let data = try PresetPackPayloads.presetJSON(id: 7, name: "Sunrise", effectId: 104, speed: 1)
