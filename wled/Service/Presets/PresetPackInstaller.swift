@@ -145,8 +145,8 @@ struct PresetPackInstaller {
         }
         let verified = created == 0 ? true : try await verify(plans)
         // Best effort: a failure here must not hide that the playlists are ready.
-        let existing = Set(presets.keys.compactMap { Int($0) }).union(ids.values)
-        await ensurePowerOn(existingIds: existing, skyId: ids[PresetPacks.playsAfterSetup.playlist.name])
+        let playlists = PowerOn.playlistIds(presets).union(ids.values)
+        await ensurePowerOn(playlistIds: playlists, skyId: ids[PresetPacks.playsAfterSetup.playlist.name])
         return .ready(
             playlistIds: ids, created: created, unavailable: unavailable, verified: verified,
             custom: DevicePresets(parsing: presets).custom
@@ -288,12 +288,12 @@ struct PresetPackInstaller {
     }
 
     /// Makes the lantern start 🎆 Sky Full of Sparks at 100% when power comes back, unless another power-on
-    /// playlist is already set and still exists. A settings PIN on the lantern makes this a no-op.
-    private func ensurePowerOn(existingIds: Set<Int>, skyId: Int?) async {
+    /// playlist is already set and is still a playlist. A settings PIN on the lantern makes this a no-op.
+    private func ensurePowerOn(playlistIds: Set<Int>, skyId: Int?) async {
         guard let data = try? await get("/json/cfg"),
               let cfg = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let target = PowerOn.presetToSet(
-                current: PowerOn.bootPreset(cfg), existingIds: existingIds, defaultId: skyId
+                current: PowerOn.bootPreset(cfg), playlistIds: playlistIds, defaultId: skyId
               ),
               let body = try? PowerOn.configJSON(presetId: target, brightness: PowerOn.fullBrightness)
         else { return }

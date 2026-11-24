@@ -102,7 +102,8 @@ struct PresetPacksTests {
     @Test func randomShufflesEveryEffectForever() {
         let random = PresetPacks.random
         #expect(random.locked)
-        #expect(random.presets.count == 48)
+        #expect(random.presets.count == 47)
+        #expect(!random.presets.contains { $0.name == "Sunrise" }) // dark in a 20 s slot; stays in Rise & Shine
         #expect(random.playlist == PlaylistSpec(
             name: "🎲 Random", quickLoad: "🎲", secondsPerPreset: 20, fadeSeconds: 1, loop: true, shuffle: true
         ))
@@ -218,6 +219,12 @@ struct PresetPacksTests {
         #expect(aurora.filter { if case .create = $0 { return true } else { return false } }.count == 1)
         // Reused by Northern Glow and Random.
         #expect(aurora.filter { if case .reuse = $0 { return true } else { return false } }.count == 2)
+        let random = plans.first { $0.pack == PresetPacks.random }?.plan.playlist
+        guard case .save(_, let randomIds) = random else {
+            Issue.record("Random is saved")
+            return
+        }
+        #expect(randomIds.count == 47)
     }
 
     @Test func planAllOnAFullyPreparedDeviceChangesNothing() {
@@ -361,10 +368,21 @@ struct PresetPacksTests {
     }
 
     @Test func powerOnSetsSkyFullOfSparksOnlyWhenNeeded() {
-        #expect(PowerOn.presetToSet(current: 0, existingIds: [1, 7], defaultId: 7) == 7)
-        #expect(PowerOn.presetToSet(current: 30, existingIds: [1, 7], defaultId: 7) == 7)
-        #expect(PowerOn.presetToSet(current: 12, existingIds: [7, 12], defaultId: 7) == nil)
-        #expect(PowerOn.presetToSet(current: 0, existingIds: [7], defaultId: nil) == nil)
+        #expect(PowerOn.presetToSet(current: 0, playlistIds: [1, 7], defaultId: 7) == 7)
+        #expect(PowerOn.presetToSet(current: 30, playlistIds: [1, 7], defaultId: 7) == 7)
+        #expect(PowerOn.presetToSet(current: 12, playlistIds: [7, 12], defaultId: 7) == nil)
+        #expect(PowerOn.presetToSet(current: 0, playlistIds: [7], defaultId: nil) == nil)
+    }
+
+    @Test func aBootPresetThatIsNoLongerAPlaylistIsReplaced() throws {
+        // Preset 3 exists but holds a single effect now (e.g. after a reset): power-on goes back to the default.
+        let presets = try parse(
+            #"{"3":{"n":"Fireworks","seg":{"fx":42}},"7":{"n":"Sky","playlist":{"ps":[1,2]}},"#
+                + #""12":{"n":"Mine","playlist":{"ps":[3]}}}"#
+        )
+        #expect(PowerOn.playlistIds(presets) == [7, 12])
+        #expect(PowerOn.presetToSet(current: 3, playlistIds: PowerOn.playlistIds(presets), defaultId: 7) == 7)
+        #expect(PowerOn.presetToSet(current: 12, playlistIds: PowerOn.playlistIds(presets), defaultId: 7) == nil)
     }
 
     @Test func powerOnConfigOnlyTouchesThePowerOnSettings() throws {

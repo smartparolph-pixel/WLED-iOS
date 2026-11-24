@@ -10,6 +10,17 @@ import SwiftUI
 struct DeviceInfoTwoRows: View {
     @Environment(\.managedObjectContext) private var viewContext
     @ObservedObject var device: DeviceWithState
+    /// Set once the lantern has been unreachable for `offlineTextDelay`, see `showOfflineText`.
+    @State private var offlineLongEnough = false
+
+    private static let offlineTextDelay: Duration = .seconds(10)
+
+    /// "(Offline, …)" after the address: never on a direct connection, where the row only says
+    /// "Direct connection", and otherwise only after a short wait. WLED closes websockets when it has too
+    /// many open (the list, the lantern page, a browser), and the quick reconnect made the text flash.
+    private var showOfflineText: Bool {
+        !device.isOnline && !device.isDirect && offlineLongEnough
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -51,7 +62,7 @@ struct DeviceInfoTwoRows: View {
                     )
                 }
                 .labelStyle(.iconOnly)
-                if !device.isOnline {
+                if showOfflineText {
                     OfflineSinceText(device: device)
                         .lineLimit(1)
                         .allowsTightening(true)
@@ -76,6 +87,12 @@ struct DeviceInfoTwoRows: View {
 
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .task(id: device.isOnline) {
+            offlineLongEnough = false
+            guard !device.isOnline else { return }
+            try? await Task.sleep(for: Self.offlineTextDelay)
+            if !Task.isCancelled { offlineLongEnough = true }
+        }
     }
 
     func getUpdateIconName() -> String {

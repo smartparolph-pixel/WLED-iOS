@@ -12,10 +12,18 @@ enum PowerOn {
     }
 
     /// The power-on playlist to set, or nil to leave the lantern as it is: `defaultId` (🎆 Sky Full of Sparks)
-    /// when none is set yet, or when the one set no longer exists (e.g. the user deleted their playlist).
-    static func presetToSet(current: Int, existingIds: Set<Int>, defaultId: Int?) -> Int? {
+    /// when none is set yet, or when the one set is not a playlist any more (deleted, or replaced by a single
+    /// effect). `playlistIds` are the ids of the playlists on the lantern.
+    static func presetToSet(current: Int, playlistIds: Set<Int>, defaultId: Int?) -> Int? {
         guard let defaultId else { return nil }
-        return current == 0 || !existingIds.contains(current) ? defaultId : nil
+        return current == 0 || !playlistIds.contains(current) ? defaultId : nil
+    }
+
+    /// The ids of the playlists in presets.json (entries with a `playlist` key).
+    static func playlistIds(_ presets: [String: Any]) -> Set<Int> {
+        Set(presets.compactMap { id, entry in
+            (entry as? [String: Any])?["playlist"] != nil ? Int(id) : nil
+        })
     }
 
     /// Body for `POST /json/cfg`: start `presetId` at power-up with the lights on, at `brightness` if given

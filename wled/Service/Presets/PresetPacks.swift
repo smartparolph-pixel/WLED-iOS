@@ -94,10 +94,15 @@ enum PresetPacks {
         flameOn, beatDrop, cometChasers, riseAndShine, spookySwitch
     ]
 
+    /// Effects left out of 🎲 Random: Sunrise starts from black and is mostly dark in a 20 s slot.
+    /// It stays in Rise & Shine.
+    private static let notInRandom: Set<String> = ["Sunrise"]
+
     /// Every effect of the other playlists in a new random order each loop. It cannot be edited.
     static let random: PresetPack = {
         var seen = Set<String>()
-        let presets = themed.flatMap(\.presets).filter { seen.insert($0.name).inserted }
+        let presets = themed.flatMap(\.presets)
+            .filter { !notInRandom.contains($0.name) && seen.insert($0.name).inserted }
         return PresetPack(
             presets: presets,
             playlist: PlaylistSpec(
